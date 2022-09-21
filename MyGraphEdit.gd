@@ -340,14 +340,15 @@ func _gui_input(event):
 				else:
 					_connecting_curve.set_point_in(1, _connecting_curve.get_point_out(0))
 			
+			accept_event()
 			update()
 		return
 	
 	if _box_selecting:
 		if event is InputEventMouseMotion:
 			_box_select_end = event.position + _scroll_offset
+			accept_event()
 			_top_layer.update()
-			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
 			# TODO: box selection
 			_box_selecting = false
@@ -369,9 +370,9 @@ func _gui_input(event):
 					if node.selected:
 						continue
 					node.selected = true
-			_top_layer.update()
-			update()
 			accept_event()
+			_top_layer.update()
+		return
 	
 	if _dragging:
 		if event is InputEventMouseMotion:
@@ -390,6 +391,7 @@ func _gui_input(event):
 				node.rect_position += event.relative
 				for connection in get_node_connections(node):
 					connection.update_curve()
+			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
 			if _last_pressed_node and _distance_dragged == 0:
@@ -412,13 +414,14 @@ func _gui_input(event):
 			# _scroll_offset += event.relative
 			for child in get_nodes():
 				child.rect_position += event.relative
+			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and !event.pressed:
 			_panning = false
 			accept_event()
 			update()
 		return
-		
+
 	if event is InputEventMouseButton and event.button_index == BUTTON_LEFT and event.pressed:
 		var position = event.position + _scroll_offset
 		
@@ -471,17 +474,20 @@ func _gui_input(event):
 		
 		accept_event()
 		_top_layer.update()
-		update()
 		return
 	
 	if event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and event.pressed:
 		_panning = true
+		accept_event()
+		return
 	
 	if event is InputEventMouseButton:
 		if event.button_index == BUTTON_WHEEL_UP:
 			rect_scale *= 1.11
 		elif event.button_index == BUTTON_WHEEL_DOWN:
 			rect_scale *= 0.9
+		accept_event()
+		return
 
 func get_cursor_shape(position: Vector2 = Vector2()) -> int:
 	var filter = _port_filter_settings_pool.acquire()
