@@ -477,9 +477,9 @@ func _gui_input(event):
 	
 	if event is InputEventMouseButton:
 		if event.button_index == BUTTON_WHEEL_UP:
-			rect_scale *= 0.9
-		elif event.button_index == BUTTON_WHEEL_DOWN:
 			rect_scale *= 1.11
+		elif event.button_index == BUTTON_WHEEL_DOWN:
+			rect_scale *= 0.9
 
 func get_cursor_shape(position: Vector2 = Vector2()) -> int:
 	var filter = _port_filter_settings_pool.acquire()
