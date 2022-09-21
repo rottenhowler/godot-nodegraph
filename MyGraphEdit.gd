@@ -377,15 +377,7 @@ func _gui_input(event):
 	if _dragging:
 		if event is InputEventMouseMotion:
 			_distance_dragged += event.relative.length()
-			if _last_pressed_node:
-				if !_last_pressed_node.selected:
-					if event.shift:
-						_last_pressed_node.selected = true
-					else:
-						for node in get_selected_nodes():
-							node.selected = false
-						_last_pressed_node.selected = true
-				_last_pressed_node = null
+			_last_pressed_node = null
 			
 			for node in get_selected_nodes():
 				node.rect_position += event.relative
@@ -394,14 +386,11 @@ func _gui_input(event):
 			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
-			if _last_pressed_node and _distance_dragged == 0:
+			if _distance_dragged == 0:
 				# It was a click on a node
-				if event.shift:
-					_last_pressed_node.selected = !_last_pressed_node.selected
-				else:
-					for selected_node in get_selected_nodes():
-						selected_node.selected = false
-					_last_pressed_node.selected = true
+				for selected_node in get_selected_nodes():
+					selected_node.selected = false
+				_last_pressed_node.selected = true
 				_last_pressed_node = null
 			
 			_dragging = false
@@ -453,10 +442,21 @@ func _gui_input(event):
 		var node = _find_node_at_position(position)
 		if node:
 			# Clicked on a node
-			_last_pressed_node = node
-			
-			_dragging = true
-			_distance_dragged = 0
+			if !node.selected:
+				if !event.shift:
+					for selected_node in get_selected_nodes():
+						selected_node.selected = false
+#					_dragging = true
+#					_distance_dragged = 0
+#					_last_pressed_node = node
+				node.selected = true
+			else:
+				if event.shift:
+					node.selected = false
+				else:
+					_last_pressed_node = node
+					_dragging = true
+					_distance_dragged = 0
 			accept_event()
 			update()
 			return
