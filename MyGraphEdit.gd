@@ -2,6 +2,8 @@ tool
 class_name MyGraphEdit
 extends Control
 
+export(Dictionary) var allowed_connections
+
 enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
 
 var _top_layer: CanvasItem
@@ -312,7 +314,7 @@ func _gui_input(event):
 			settings.enabled = true
 			var port_info = _find_port_at_position(event.position + _scroll_offset, settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and port_info.node != _connecting_port.node and port_info.node.get_port_type(port_info.index) != _connecting_port.node.get_port_type(_connecting_port.index):
+			if port_info and is_connection_allowed(_connecting_port.node.get_port_type(_connecting_port.index), port_info.node.get_port_type(port_info.index)):
 				connect_nodes(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
 			
 			_connecting_port = null
@@ -325,7 +327,7 @@ func _gui_input(event):
 			settings.enabled = true
 			var port_info = _find_port_at_position(position, settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and port_info.node != _connecting_port.node and port_info.node.get_port_type(port_info.index) != _connecting_port.node.get_port_type(_connecting_port.index):
+			if port_info and is_connection_allowed(_connecting_port.node.get_port_type(_connecting_port.index), port_info.node.get_port_type(port_info.index)):
 				_connecting_curve.set_point_position(1, port_info.node.get_port_position(port_info.index))
 				_connecting_curve.set_point_in(1, port_info.node.get_port_control_point(port_info.index))
 			else:
@@ -488,6 +490,11 @@ func get_cursor_shape(position: Vector2 = Vector2()) -> int:
 	if port_info:
 		return CURSOR_CROSS
 	return CURSOR_ARROW
+
+func is_connection_allowed(source_type: int, destination_type: int) -> bool:
+	if allowed_connections.empty():
+		return true
+	return allowed_connections.has(source_type) and allowed_connections[source_type].has(destination_type)
 
 func connect_nodes(source_node: MyGraphNode, source_port: int, destination_node: MyGraphNode, destination_port: int) -> void:
 	if !source_node:
