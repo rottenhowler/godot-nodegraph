@@ -46,7 +46,57 @@ class Connection:
 		_curve.set_point_position(1, destination_node.get_port_position(destination_port))
 		_curve.set_point_in(1, destination_node.get_port_control_point(destination_port))
 
+class MyGraphNodeIterator:
+	var graph_edit: MyGraphEdit
+	var index: int
+	
+	func _init(graph_edit: MyGraphEdit):
+		self.graph_edit = graph_edit
+	
+	func _advance() -> bool:
+		while index < graph_edit.get_child_count():
+			if graph_edit.get_child(index) is MyGraphNode:
+				return true
+			index += 1
+		return false
+	
+	func _iter_init(arg) -> bool:
+		index = 0
+		return _advance()
+	
+	func _iter_next(arg) -> bool:
+		index += 1
+		return _advance()
+	
+	func _iter_get(arg):
+		return graph_edit.get_child(index)
 
+class SelectedNodesIterator:
+	var iterator
+	func _init(node_iterator):
+		iterator = node_iterator
+	
+	func _advance() -> bool:
+		while true:
+			if iterator._iter_get(null).selected:
+				break
+			if !iterator._iter_next(null):
+				return false
+		return true
+	
+	func _iter_init(arg) -> bool:
+		if !iterator._iter_init(arg):
+			return false
+		return _advance()
+	
+	func _iter_next(arg) -> bool:
+		if !iterator._iter_next(arg):
+			return false
+		return _advance()
+	
+	func _iter_get(arg):
+		return iterator._iter_get(arg)
+	
 var connections: Array = []
 
 func _init():
@@ -170,11 +220,14 @@ func _get_selection_box() -> Rect2:
 	ys.sort()
 	return Rect2(xs[0], ys[0], xs[1] - xs[0], ys[1] - ys[0])
 
+func get_nodes():
+	return MyGraphNodeIterator.new(self)
+
+func get_selected_nodes():
+	return SelectedNodesIterator.new(get_nodes())
+
 func _find_node_at_position(position: Vector2) -> MyGraphNode:
-	for node in get_children():
-		if !(node is MyGraphNode):
-			continue
-		
+	for node in get_nodes():
 		if node.get_rect().has_point(position):
 			return node
 		
@@ -215,10 +268,7 @@ func _find_port_at_position(position: Vector2, filter: PortFilterSettings) -> Po
 	var best_port = PortInfo.new()
 	var best_distance = -1
 
-	for node in get_children():
-		if !(node is MyGraphNode):
-			continue
-		
+	for node in get_nodes():
 		for i in node.port_count:
 			if filter.enabled and !node.get_port_enabled(i):
 				continue
@@ -303,29 +353,25 @@ func _gui_input(event):
 			_box_selecting = false
 			var box = _get_selection_box()
 			if event.alt:
-				for child in get_children():
-					if !(child is MyGraphNode):
+				for node in get_nodes():
+					if !box.encloses(node.get_rect()):
 						continue
-					if !box.encloses(child.get_rect()):
+					if !_selected_nodes.has(node):
 						continue
-					if !_selected_nodes.has(child):
-						continue
-					_selected_nodes.erase(child)
-					child.selected = false
+					_selected_nodes.erase(node)
+					node.selected = false
 			else:
 				if !event.shift:
-					for node in _selected_nodes:
+					for node in get_selected_nodes():
 						node.selected = false
 					_selected_nodes = []
-				for child in get_children():
-					if !(child is MyGraphNode):
+				for node in get_nodes():
+					if !box.encloses(node.get_rect()):
 						continue
-					if !box.encloses(child.get_rect()):
+					if node.selected:
 						continue
-					if _selected_nodes.has(child):
-						continue
-					_selected_nodes.push_back(child)
-					child.selected = true
+					_selected_nodes.push_back(node)
+					node.selected = true
 			_top_layer.update()
 			update()
 			accept_event()
@@ -339,13 +385,13 @@ func _gui_input(event):
 						_selected_nodes.push_back(_last_pressed_node)
 						_last_pressed_node.selected = true
 					else:
-						for selected_node in _selected_nodes:
-							selected_node.selected = false
+						for node in get_selected_nodes():
+							node.selected = false
 						_last_pressed_node.selected = true
 						_selected_nodes = [_last_pressed_node]
 				_last_pressed_node = null
 			
-			for node in _selected_nodes:
+			for node in get_selected_nodes():
 				node.rect_position += event.relative
 				for connection in get_node_connections(node):
 					connection.update_curve()
@@ -361,7 +407,7 @@ func _gui_input(event):
 						_selected_nodes.push_back(_last_pressed_node)
 						_last_pressed_node.selected = true
 				else:
-					for selected_node in _selected_nodes:
+					for selected_node in get_selected_nodes():
 						selected_node.selected = false
 					_last_pressed_node.selected = true
 					_selected_nodes = [_last_pressed_node]
@@ -375,9 +421,7 @@ func _gui_input(event):
 	if _panning:
 		if event is InputEventMouseMotion:
 			# _scroll_offset += event.relative
-			for child in get_children():
-				if !(child is MyGraphNode):
-					continue
+			for child in get_nodes():
 				child.rect_position += event.relative
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and !event.pressed:
