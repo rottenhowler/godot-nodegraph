@@ -11,7 +11,6 @@ var _port_filter_settings_pool = PortFilterSettingsPool.new()
 var _connecting_port: PortInfo = null
 var _connecting_curve: Curve2D
 
-var _selected_nodes: Array = []
 var _last_pressed_node: MyGraphNode = null
 var _dragging: bool = false
 var _distance_dragged: int = 0
@@ -111,7 +110,6 @@ func _enter_tree() -> void:
 	connect("child_exiting_tree", self, "_on_child_exiting_tree")
 
 func _ready() -> void:
-	_selected_nodes = []
 	_dragging = false
 	_panning = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -356,21 +354,18 @@ func _gui_input(event):
 				for node in get_nodes():
 					if !box.encloses(node.get_rect()):
 						continue
-					if !_selected_nodes.has(node):
+					if !node.selected:
 						continue
-					_selected_nodes.erase(node)
 					node.selected = false
 			else:
 				if !event.shift:
 					for node in get_selected_nodes():
 						node.selected = false
-					_selected_nodes = []
 				for node in get_nodes():
 					if !box.encloses(node.get_rect()):
 						continue
 					if node.selected:
 						continue
-					_selected_nodes.push_back(node)
 					node.selected = true
 			_top_layer.update()
 			update()
@@ -380,15 +375,13 @@ func _gui_input(event):
 		if event is InputEventMouseMotion:
 			_distance_dragged += event.relative.length()
 			if _last_pressed_node:
-				if !_selected_nodes.has(_last_pressed_node):
+				if !_last_pressed_node.selected:
 					if event.shift:
-						_selected_nodes.push_back(_last_pressed_node)
 						_last_pressed_node.selected = true
 					else:
 						for node in get_selected_nodes():
 							node.selected = false
 						_last_pressed_node.selected = true
-						_selected_nodes = [_last_pressed_node]
 				_last_pressed_node = null
 			
 			for node in get_selected_nodes():
@@ -400,17 +393,11 @@ func _gui_input(event):
 			if _last_pressed_node and _distance_dragged == 0:
 				# It was a click on a node
 				if event.shift:
-					if _selected_nodes.has(_last_pressed_node):
-						_selected_nodes.erase(_last_pressed_node)
-						_last_pressed_node.selected = false
-					else:
-						_selected_nodes.push_back(_last_pressed_node)
-						_last_pressed_node.selected = true
+					_last_pressed_node.selected = !_last_pressed_node.selected
 				else:
 					for selected_node in get_selected_nodes():
 						selected_node.selected = false
 					_last_pressed_node.selected = true
-					_selected_nodes = [_last_pressed_node]
 				_last_pressed_node = null
 			
 			_dragging = false
