@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=2]
 
-[ext_resource path="res://MyGraphEdit.gd" type="Script" id=1]
-[ext_resource path="res://MyGraphNode.gd" type="Script" id=3]
+[ext_resource path="res://addons/NodeGraph/NodeGraphEdit.gd" type="Script" id=1]
+[ext_resource path="res://addons/NodeGraph/NodeGraphNode.gd" type="Script" id=2]
 
 [sub_resource type="StyleBoxFlat" id=1]
 bg_color = Color( 0.364706, 0.231373, 0.231373, 1 )
@@ -25,29 +25,30 @@ margin_top = 43.0
 margin_right = 157.0
 margin_bottom = 106.0
 mouse_filter = 1
-script = ExtResource( 3 )
+script = ExtResource( 2 )
+node_position = Vector2( 40, 43 )
 port_count = 3
 ports/0/type = 0
 ports/0/color = Color( 1, 1, 1, 1 )
 ports/0/enabled = true
 ports/0/horizontal_anchor = 0.0
-ports/0/vertical_anchor = 0.5
+ports/0/vertical_anchor = 0.0
 ports/0/horizontal_offset = 0.0
 ports/0/vertical_offset = 0.0
-ports/1/type = 1
+ports/1/type = 0
 ports/1/color = Color( 1, 1, 1, 1 )
 ports/1/enabled = true
-ports/1/horizontal_anchor = 1.0
-ports/1/vertical_anchor = 0.5
+ports/1/horizontal_anchor = 0.0
+ports/1/vertical_anchor = 0.0
 ports/1/horizontal_offset = 0.0
-ports/1/vertical_offset = -10.0
-ports/2/type = 1
+ports/1/vertical_offset = 0.0
+ports/2/type = 0
 ports/2/color = Color( 1, 1, 1, 1 )
 ports/2/enabled = true
-ports/2/horizontal_anchor = 1.0
-ports/2/vertical_anchor = 0.5
+ports/2/horizontal_anchor = 0.0
+ports/2/vertical_anchor = 0.0
 ports/2/horizontal_offset = 0.0
-ports/2/vertical_offset = 10.0
+ports/2/vertical_offset = 0.0
 
 [node name="PanelContainer" type="PanelContainer" parent="MyGraphEdit/MyGraphNode1"]
 anchor_right = 1.0
@@ -76,27 +77,28 @@ margin_top = 47.0
 margin_right = 316.0
 margin_bottom = 97.0
 mouse_filter = 1
-script = ExtResource( 3 )
+script = ExtResource( 2 )
+node_position = Vector2( 216, 47 )
 port_count = 3
 ports/0/type = 0
 ports/0/color = Color( 1, 1, 1, 1 )
 ports/0/enabled = true
 ports/0/horizontal_anchor = 0.0
-ports/0/vertical_anchor = 0.5
+ports/0/vertical_anchor = 0.0
 ports/0/horizontal_offset = 0.0
-ports/0/vertical_offset = -10.0
+ports/0/vertical_offset = 0.0
 ports/1/type = 0
 ports/1/color = Color( 1, 1, 1, 1 )
 ports/1/enabled = true
 ports/1/horizontal_anchor = 0.0
-ports/1/vertical_anchor = 0.5
+ports/1/vertical_anchor = 0.0
 ports/1/horizontal_offset = 0.0
-ports/1/vertical_offset = 10.0
-ports/2/type = 1
+ports/1/vertical_offset = 0.0
+ports/2/type = 0
 ports/2/color = Color( 1, 1, 1, 1 )
 ports/2/enabled = true
-ports/2/horizontal_anchor = 1.0
-ports/2/vertical_anchor = 0.5
+ports/2/horizontal_anchor = 0.0
+ports/2/vertical_anchor = 0.0
 ports/2/horizontal_offset = 0.0
 ports/2/vertical_offset = 0.0
 
@@ -106,12 +108,13 @@ margin_top = 48.0
 margin_right = 466.0
 margin_bottom = 98.0
 mouse_filter = 1
-script = ExtResource( 3 )
+script = ExtResource( 2 )
+node_position = Vector2( 366, 48 )
 port_count = 1
 ports/0/type = 0
 ports/0/color = Color( 1, 1, 1, 1 )
 ports/0/enabled = true
 ports/0/horizontal_anchor = 0.0
-ports/0/vertical_anchor = 0.5
+ports/0/vertical_anchor = 0.0
 ports/0/horizontal_offset = 0.0
 ports/0/vertical_offset = 0.0

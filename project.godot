@@ -10,24 +10,24 @@ config_version=4
 
 _global_script_classes=[ {
 "base": "Control",
-"class": "MyGraphEdit",
+"class": "NodeGraphEdit",
 "language": "GDScript",
-"path": "res://MyGraphEdit.gd"
+"path": "res://addons/NodeGraph/NodeGraphEdit.gd"
 }, {
 "base": "Container",
-"class": "MyGraphNode",
+"class": "NodeGraphNode",
 "language": "GDScript",
-"path": "res://MyGraphNode.gd"
+"path": "res://addons/NodeGraph/NodeGraphNode.gd"
 } ]
 _global_script_class_icons={
-"MyGraphEdit": "",
-"MyGraphNode": ""
+"NodeGraphEdit": "",
+"NodeGraphNode": ""
 }
 
 [application]
 
 config/name="MyGraphEdit"
-run/main_scene="res://Test.tscn"
+run/main_scene="res://addons/NodeGraph/Test.tscn"
 config/icon="res://icon.png"
 
 [gui]

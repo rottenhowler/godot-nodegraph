@@ -1,11 +1,13 @@
 tool
-class_name MyGraphNode
+class_name NodeGraphNode
 extends Container
 
-signal port_added(node, port_index)
-signal port_updated(node, port_index)
-signal port_removed(node, port_index)
-signal graph_position_changed
+signal selected
+signal deselected
+
+signal port_added(port_index)
+signal port_updated(port_index)
+signal port_removed(port_index)
 
 const PORT_SIZE = 5
 const CORNER_RADIUS = 10
@@ -24,6 +26,8 @@ class Port extends Resource:
 	var updated_signal_pending: bool = false
 	var position_dirty: bool = false
 	var position: Vector2
+
+export(Vector2) var node_position: Vector2 setget set_node_position, get_node_position
 
 export(bool) var selected: bool setget set_selected
 export(int) var port_count: int setget set_port_count, get_port_count
@@ -60,6 +64,17 @@ func _ready() -> void:
 	
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	connect("item_rect_changed", self, "_on_rect_changed")
+
+func get_node_position() -> Vector2:
+	if get_parent():
+		return rect_position - get_parent().scroll_offset
+	return rect_position
+
+func set_node_position(new_position: Vector2) -> void:
+	var offset: Vector2 = Vector2()
+	if get_parent():
+		offset = get_parent().scroll_offset
+	rect_position = new_position + offset
 
 func _on_rect_changed() -> void:
 	for port in _ports:
@@ -159,7 +174,7 @@ func set_port_count(value: int) -> void:
 		return
 	
 	for i in range(value, _ports.size()):
-		emit_signal("port_removed", self, i)
+		emit_signal("port_removed", i)
 	
 	_ports.resize(value)
 	
@@ -168,13 +183,21 @@ func set_port_count(value: int) -> void:
 			var port = Port.new()
 			port.updated_signal_pending = false
 			_ports[i] = port
-			emit_signal("port_added", self, i)
+			emit_signal("port_added", i)
 	
 	property_list_changed_notify()
 	update()
 
 func set_selected(value: bool) -> void:
+	if selected == value:
+		return
+	
 	selected = value
+	if selected:
+		emit_signal("selected")
+	else:
+		emit_signal("deselected")
+	
 	_top_layer.update()
 	update()
 
@@ -212,7 +235,7 @@ func _queue_port_updated(index: int) -> void:
 	call_deferred("_emit_port_updated", index)
 
 func _emit_port_updated(index: int) -> void:
-	emit_signal("port_updated", self, index)
+	emit_signal("port_updated", index)
 	_ports[index].updated_signal_pending = false
 
 func get_port_position(index: int) -> Vector2:
