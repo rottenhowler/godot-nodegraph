@@ -26,9 +26,17 @@ _global_script_class_icons={
 
 [application]
 
-config/name="MyGraphEdit"
+config/name="NodeGraph"
 run/main_scene="res://addons/NodeGraph/Test.tscn"
 config/icon="res://icon.png"
+
+[editor_plugins]
+
+enabled=PoolStringArray( "res://addons/NodeGraph/plugin.cfg" )
+
+[global]
+
+dpi=false
 
 [gui]
 
