@@ -130,10 +130,10 @@ func _draw() -> void:
 #	draw_style_box(stylebox, Rect2(rect_position, rect_size))
 
 	for connection in connections:
-		draw_polyline(connection._curve.get_baked_points(), connection.source_node.get_port_color(connection.source_port), 2.0, true)
+		draw_polyline(connection._curve.get_baked_points(), connection.source_node.get_port(connection.source_port).color, 2.0, true)
 
 	if _connecting_port:
-		draw_polyline(_connecting_curve.get_baked_points(), _connecting_port.node.get_port_color(_connecting_port.index), 2.0, true)
+		draw_polyline(_connecting_curve.get_baked_points(), _connecting_port.node.get_port(_connecting_port.index).color, 2.0, true)
 
 func _top_layer_draw() -> void:
 	if _box_selecting:
@@ -270,7 +270,7 @@ func _find_port_at_position(position: Vector2, filter: PortFilterSettings) -> Po
 
 	for node in get_nodes():
 		for i in node.port_count:
-			if filter.enabled and !node.get_port_enabled(i):
+			if filter.enabled and !node.get_port(i).enabled:
 				continue
 			
 			var port_position = node.get_port_position(i)
@@ -314,7 +314,7 @@ func _gui_input(event):
 			settings.enabled = true
 			var port_info = _find_port_at_position(event.position + scroll_offset, settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and is_connection_allowed(_connecting_port.node.get_port_type(_connecting_port.index), port_info.node.get_port_type(port_info.index)):
+			if port_info and is_connection_allowed(_connecting_port.node.get_port(_connecting_port.index).type, port_info.node.get_port(port_info.index).type):
 				connect_nodes(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
 			
 			_connecting_port = null
@@ -327,7 +327,7 @@ func _gui_input(event):
 			settings.enabled = true
 			var port_info = _find_port_at_position(position, settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and is_connection_allowed(_connecting_port.node.get_port_type(_connecting_port.index), port_info.node.get_port_type(port_info.index)):
+			if port_info and is_connection_allowed(_connecting_port.node.get_port(_connecting_port.index).type, port_info.node.get_port(port_info.index).type):
 				_connecting_curve.set_point_position(1, port_info.node.get_port_position(port_info.index))
 				_connecting_curve.set_point_in(1, port_info.node.get_port_control_point(port_info.index))
 			else:

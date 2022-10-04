@@ -13,19 +13,91 @@ const PORT_SIZE = 5
 const CORNER_RADIUS = 10
 
 class Port extends Resource:
-	export(int) var type: int
-	export(Color) var color: Color = Color.white
-	export(bool) var enabled: bool = true
+	var node: NodeGraphNode
 	
-	export(float) var hanchor: float
-	export(float) var vanchor: float
+	export(int) var type setget _set_type
+	export(Color) var color = Color.white setget _set_color
+	export(bool) var enabled = true setget _set_enabled
 	
-	export(float) var hoffset: float
-	export(float) var voffset: float
+	export(float) var hanchor setget _set_hanchor
+	export(float) var vanchor setget _set_vanchor
+	
+	export(Vector2) var offset setget _set_offset
 
 	var updated_signal_pending: bool = false
 	var position_dirty: bool = false
 	var position: Vector2
+
+	func _init(node: NodeGraphNode):
+		self.node = node
+	
+	func get_position() -> Vector2:
+		if position_dirty:
+			var rect_size = node.rect_size
+			position = offset + Vector2(hanchor * rect_size.x, vanchor * rect_size.y)
+			position_dirty = false
+		return position
+	
+	func _queue_port_updated() -> void:
+		if updated_signal_pending:
+			return
+		updated_signal_pending = true
+		call_deferred("_emit_port_updated")
+	
+	func _emit_port_updated() -> void:
+		node.emit_signal("port_updated", node._ports.find(self))
+		updated_signal_pending = false
+
+	func _set_type(value: int) -> void:
+		if type == value:
+			return
+		
+		type = value
+		_queue_port_updated()
+		node.update()
+
+	func _set_color(value: Color) -> void:
+		if color == value:
+			return
+		
+		color = value
+		_queue_port_updated()
+		node.update()
+
+	func _set_enabled(value: bool) -> void:
+		if enabled == value:
+			return
+		
+		enabled = value
+		_queue_port_updated()
+		node.update()
+
+	func _set_hanchor(value: float) -> void:
+		if hanchor == value:
+			return
+		
+		hanchor = value
+		position_dirty = true
+		_queue_port_updated()
+		node.update()
+
+	func _set_vanchor(value: float) -> void:
+		if vanchor == value:
+			return
+		
+		vanchor = value
+		position_dirty = true
+		_queue_port_updated()
+		node.update()
+
+	func _set_offset(value: Vector2) -> void:
+		if offset == value:
+			return
+		
+		offset = value
+		position_dirty = true
+		_queue_port_updated()
+		node.update()
 
 export(Vector2) var node_position: Vector2 setget set_node_position, get_node_position
 
@@ -95,72 +167,66 @@ func _get_port_properties(port: Port, prefix: String) -> Array:
 	properties.push_back({"name": prefix + "enabled", "type": TYPE_BOOL})
 	properties.push_back({"name": prefix + "horizontal_anchor", "type": TYPE_REAL, "hint": PROPERTY_HINT_RANGE, "hint_string": "0,1"})
 	properties.push_back({"name": prefix + "vertical_anchor", "type": TYPE_REAL, "hint": PROPERTY_HINT_RANGE, "hint_string": "0,1"})
-	properties.push_back({"name": prefix + "horizontal_offset", "type": TYPE_REAL})
-	properties.push_back({"name": prefix + "vertical_offset", "type": TYPE_REAL})
+	properties.push_back({"name": prefix + "offset", "type": TYPE_VECTOR2})
 	
 	return properties
 
 func _get(path: String):
 	if path.begins_with("ports/"):
-		return _get_port_property(_ports, path.substr(6))
+		return _get_port_property(path.substr(6))
 	return null
 
 func _set(path: String, value) -> bool:
 	if path.begins_with("ports/"):
-		return _set_port_property(_ports, path.substr(6), value)
+		return _set_port_property(path.substr(6), value)
 	return false
 
-func _get_port_property(ports: Array, path: String):
+func _get_port_property(path: String):
 	var parts = path.split("/")
 	var index = int(parts[0])
-	if index < 0 or index >= ports.size():
+	if index < 0 or index >= _ports.size():
 		return false
 	if parts.size() != 2:
 		return false
 	match parts[1]:
 		"type":
-			return ports[index].type
+			return _ports[index].type
 		"color":
-			return ports[index].color
+			return _ports[index].color
 		"enabled":
-			return ports[index].enabled
+			return _ports[index].enabled
 		"horizontal_anchor":
-			return ports[index].hanchor
+			return _ports[index].hanchor
 		"vertical_anchor":
-			return ports[index].vanchor
-		"horizontal_offset":
-			return ports[index].hoffset
-		"vertical_offset":
-			return ports[index].voffset
+			return _ports[index].vanchor
+		"offset":
+			return _ports[index].offset
 		_:
 			return null
 
-func _set_port_property(ports: Array, path: String, value) -> bool:
+func _set_port_property(path: String, value) -> bool:
 	var parts = path.split("/")
 	var index = int(parts[0])
-	if index < 0 or index >= ports.size():
+	if index < 0 or index >= _ports.size():
 		return false
 	if parts.size() != 2:
 		return false
 	match parts[1]:
 		"type":
-			ports[index].type = value
+			_ports[index].type = value
 		"color":
-			ports[index].color = value
+			_ports[index].color = value
 		"enabled":
-			ports[index].enabled = value
+			_ports[index].enabled = value
 		"horizontal_anchor":
-			ports[index].hanchor = value
-			ports[index].position_dirty = true
+			_ports[index].hanchor = value
+			_ports[index].position_dirty = true
 		"vertical_anchor":
-			ports[index].vanchor = value
-			ports[index].position_dirty = true
-		"horizontal_offset":
-			ports[index].hoffset = value
-			ports[index].position_dirty = true
-		"vertical_offset":
-			ports[index].voffset = value
-			ports[index].position_dirty = true
+			_ports[index].vanchor = value
+			_ports[index].position_dirty = true
+		"offset":
+			_ports[index].offset = value
+			_ports[index].position_dirty = true
 		_:
 			return false
 	update()
@@ -180,13 +246,16 @@ func set_port_count(value: int) -> void:
 	
 	for i in _ports.size():
 		if !_ports[i]:
-			var port = Port.new()
+			var port = Port.new(self)
 			port.updated_signal_pending = false
 			_ports[i] = port
 			emit_signal("port_added", i)
 	
 	property_list_changed_notify()
 	update()
+
+func get_port(index: int) -> Port:
+	return _ports[index]
 
 func set_selected(value: bool) -> void:
 	if selected == value:
@@ -215,11 +284,11 @@ func _top_layer_draw() -> void:
 	_top_layer.draw_style_box(stylebox, Rect2(Vector2(), get_size()))
 	
 	for i in _ports.size():
-		_draw_port(i)
+		_draw_port(_ports[i])
 
-func _draw_port(index) -> void:
-	var position = get_port_position(index) - rect_position
-	_top_layer.draw_circle(position, PORT_SIZE, get_port_color(index))
+func _draw_port(port: Port) -> void:
+	var position = port.get_position()
+	_top_layer.draw_circle(position, PORT_SIZE, port.color)
 	_top_layer.draw_arc(position, PORT_SIZE, 0, TAU, 32, Color.black, 1, true)
 
 func _notification(what: int) -> void:
@@ -227,29 +296,17 @@ func _notification(what: int) -> void:
 		for port in _ports:
 			port.position_dirty = true
 
-func _queue_port_updated(index: int) -> void:
-	var port = _ports[index]
-	if port.updated_signal_pending:
-		return
-	port.updated_signal_pending = true
-	call_deferred("_emit_port_updated", index)
-
-func _emit_port_updated(index: int) -> void:
-	emit_signal("port_updated", index)
-	_ports[index].updated_signal_pending = false
-
 func get_port_position(index: int) -> Vector2:
 	if index < 0 or index >= _ports.size():
 		return Vector2()
 	
-	var port = _ports[index]
-	if port.position_dirty:
-		port.position = Vector2(port.hoffset + port.hanchor * rect_size.x, port.voffset + port.vanchor * rect_size.y)
-		port.position_dirty = false
-	return rect_position + port.position
+	return rect_position + _ports[index].get_position()
 
 func get_port_control_point(index: int) -> Vector2:
-	var position = get_port_position(index) - rect_position
+	if index < 0 or index >= _ports.size():
+		return Vector2()
+	
+	var position = _ports[index].get_position()
 	
 	var control = Vector2(-20, 0)
 	var best_distance = abs(position.x)
@@ -264,140 +321,3 @@ func get_port_control_point(index: int) -> Vector2:
 		best_distance = abs(rect_size.y - position.y)
 		control = Vector2(0, 20)
 	return control
-
-func get_port_type(index: int) -> int:
-	if index < 0 or index >= _ports.size():
-		return -1
-	
-	return _ports[index].type
-
-func set_port_type(index: int, type: int) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-	
-	var port = _ports[index]
-	
-	if port.type == type:
-		return
-	
-	port.type = type
-	_queue_port_updated(index)
-	update()
-
-func get_port_color(index: int) -> Color:
-	if index < 0 or index >= _ports.size():
-		return Color()
-
-	return _ports[index].color
-
-func set_port_color(index: int, value: Color) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-	
-	var port = _ports[index]
-
-	if port.color == value:
-		return
-	
-	port.color = value
-	_queue_port_updated(index)
-	update()
-
-func get_port_enabled(index: int) -> bool:
-	if index < 0 or index >= _ports.size():
-		return false
-	
-	return _ports[index].enabled
-
-func set_port_enabled(index: int, value: bool) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-		
-	var port = _ports[index]
-	
-	if port.enabled == value:
-		return
-	
-	port.enabled = value
-	_queue_port_updated(index)
-	update()
-
-func get_port_horizontal_anchor(index: int) -> float:
-	if index < 0 or index >= _ports.size():
-		return 0.0
-	
-	return _ports[index].hanchor
- 
-func set_port_horizontal_anchor(index: int, value: float) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-	
-	var port = _ports[index]
-	
-	if port.hanchor == value:
-		return
-	
-	port.hanchor = value
-	port.position_dirty = true
-	_queue_port_updated(index)
-	update()
-
-func get_port_vertical_anchor(index: int) -> float:
-	if index < 0 or index >= _ports.size():
-		return 0.0
-	
-	return _ports[index].vanchor
- 
-func set_port_vertical_anchor(index: int, value: float) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-	
-	var port = _ports[index]
-	
-	if port.vanchor == value:
-		return
-	
-	port.vanchors = value
-	port.position_dirty = true
-	_queue_port_updated(index)
-	update()
-
-func get_port_horizontal_offset(index: int) -> float:
-	if index < 0 or index >= _ports.size():
-		return 0.0
-	
-	return _ports[index].hoffset
-
-func set_port_horizontal_offset(index: int, value: float) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-
-	var port = _ports[index]
-	
-	if port.hoffset == value:
-		return
-	
-	port.hoffset = value
-	port.position_dirty = true
-	_queue_port_updated(index)
-	update()
-	
-func get_port_vertical_offset(index: int) -> float:
-	if index < 0 or index >= _ports.size():
-		return 0.0
-	
-	return _ports[index].voffset
-
-func set_port_vertical_offset(index: int, value: float) -> void:
-	if index < 0 or index >= _ports.size():
-		return
-
-	var port = _ports[index]
-	
-	if port.voffset == value:
-		return
-	
-	port.voffset = value
-	port.position_dirty = true
-	_queue_port_updated(index)
-	update()
