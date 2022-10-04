@@ -296,12 +296,15 @@ func _notification(what: int) -> void:
 		for port in _ports:
 			port.position_dirty = true
 
+# Returns port position in graph coordinates
 func get_port_position(index: int) -> Vector2:
 	if index < 0 or index >= _ports.size():
 		return Vector2()
 	
 	return rect_position + _ports[index].get_position()
 
+# Returns direction of connection point tangent at port
+# Usually points away from node, depending on which side port closer to
 func get_port_control_point(index: int) -> Vector2:
 	if index < 0 or index >= _ports.size():
 		return Vector2()

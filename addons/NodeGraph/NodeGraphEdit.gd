@@ -220,9 +220,11 @@ func _get_selection_box() -> Rect2:
 	ys.sort()
 	return Rect2(xs[0], ys[0], xs[1] - xs[0], ys[1] - ys[0])
 
+# Returns iterator for all nodes
 func get_nodes():
 	return NodeGraphNodeIterator.new(self)
 
+# Returns iterator for selected nodes only
 func get_selected_nodes():
 	return SelectedNodesIterator.new(get_nodes())
 
@@ -285,6 +287,7 @@ func _find_port_at_position(position: Vector2, filter: PortFilterSettings) -> Po
 		
 	return best_port
 
+# Handle keyboard events
 func _unhandled_input(event):
 	if _box_selecting and event is InputEventKey:
 		# Massage modifier keys
@@ -489,6 +492,7 @@ func _gui_input(event):
 		accept_event()
 		return
 
+# TODO: implement different cursor shapes
 func get_cursor_shape(position: Vector2 = Vector2()) -> int:
 	var filter = _port_filter_settings_pool.acquire()
 	var port_info = _find_port_at_position(position, filter)
@@ -497,11 +501,13 @@ func get_cursor_shape(position: Vector2 = Vector2()) -> int:
 		return CURSOR_CROSS
 	return CURSOR_ARROW
 
+# Returns true if connection from given source port type to given destination port type is allowed
 func is_connection_allowed(source_type: int, destination_type: int) -> bool:
 	if allowed_connections.empty():
 		return true
 	return allowed_connections.has(source_type) and allowed_connections[source_type].has(destination_type)
 
+# Creates connection between given nodes&ports
 func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int) -> void:
 	if !source_node:
 		print("add_connection: Invalid source node")
@@ -523,6 +529,7 @@ func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_nod
 	connections.push_back(connection)
 	update()
 
+# Removes connection from given source node&port to given node&port
 func disconnect_nodes(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int) -> void:
 	for i in connections.size():
 		var c = connections[i]
@@ -530,12 +537,15 @@ func disconnect_nodes(source_node: NodeGraphNode, source_port: int, destination_
 			connections.remove(i)
 			break
 
+# Removes given connection
 func remove_connection(connection: Connection) -> void:
 	connections.erase(connection)
 
+# Returns all connections
 func get_connections() -> Array:
 	return connections
 
+# Returns all connections from given node (and given port, if port index is set)
 func get_source_node_connections(source_node: NodeGraphNode, source_port: int = -1) -> Array:
 	var result = []
 	for connection in connections:
@@ -543,6 +553,7 @@ func get_source_node_connections(source_node: NodeGraphNode, source_port: int = 
 			result.push_back(connection)
 	return result
 
+# Returns all connections to given node (and given port, if port index is set)
 func get_destination_node_connections(destination_node: NodeGraphNode, destination_port: int = -1) -> Array:
 	var result = []
 	for connection in connections:
@@ -550,6 +561,7 @@ func get_destination_node_connections(destination_node: NodeGraphNode, destinati
 			result.push_back(connection)
 	return result
 
+# Returns all connections involving given node (both in and out)
 func get_node_connections(node: NodeGraphNode) -> Array:
 	var result = []
 	for connection in connections:
