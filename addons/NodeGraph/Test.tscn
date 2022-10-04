@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://addons/NodeGraph/NodeGraphEdit.gd" type="Script" id=1]
 [ext_resource path="res://addons/NodeGraph/NodeGraphNode.gd" type="Script" id=2]
+[ext_resource path="res://addons/NodeGraph/Theme.tres" type="Theme" id=3]
 
 [sub_resource type="StyleBoxFlat" id=1]
 bg_color = Color( 0.364706, 0.231373, 0.231373, 1 )
@@ -17,6 +18,7 @@ margin_right = 1024.0
 margin_bottom = 600.0
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme = ExtResource( 3 )
 script = ExtResource( 1 )
 
 [node name="MyGraphNode1" type="Container" parent="MyGraphEdit"]

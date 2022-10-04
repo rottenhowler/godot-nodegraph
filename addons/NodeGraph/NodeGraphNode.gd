@@ -107,6 +107,9 @@ export(int) var port_count: int setget set_port_count, get_port_count
 var _top_layer: CanvasItem
 var _ports: Array = []
 
+var border_normal_stylebox: StyleBox
+var border_selected_stylebox: StyleBox
+
 func _init():
 	_top_layer = Control.new()
 	_top_layer.connect("draw", self, "_top_layer_draw")
@@ -115,27 +118,10 @@ func _init():
 	add_child(_top_layer)
 
 func _ready() -> void:
-	var stylebox = StyleBoxFlat.new()
-	stylebox.bg_color = Color(0.7, 0.7, 0.7, 0.5)
-	stylebox.set_corner_radius_all(CORNER_RADIUS)
-	add_stylebox_override("body", stylebox)
-	
-	var border_normal = StyleBoxFlat.new()
-	border_normal.draw_center = false
-	border_normal.set_corner_radius_all(CORNER_RADIUS)
-	border_normal.border_color = Color.black
-	border_normal.set_border_width_all(1.0)
-	add_stylebox_override("border_normal", border_normal)
-	
-	var border_selected = StyleBoxFlat.new()
-	border_selected.draw_center = false
-	border_selected.set_corner_radius_all(CORNER_RADIUS)
-	border_selected.border_color = Color.yellow
-	border_selected.set_border_width_all(1.0)
-	add_stylebox_override("border_selected", border_selected)
-	
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	connect("item_rect_changed", self, "_on_rect_changed")
+	
+	_cache_border_styleboxes()
 
 func get_node_position() -> Vector2:
 	if get_parent():
@@ -270,16 +256,27 @@ func set_selected(value: bool) -> void:
 	_top_layer.update()
 	update()
 
+func _cache_border_styleboxes() -> void:
+	border_normal_stylebox = get_stylebox("frame_normal", "NodeGraphNode").duplicate()
+	border_normal_stylebox.draw_center = false
+	
+	border_selected_stylebox = get_stylebox("frame_selected", 'NodeGraphNode').duplicate()
+	border_selected_stylebox.draw_center = false
+
+func _get_frame_stylebox() -> StyleBox:
+	if selected:
+		return get_stylebox("frame_selected", "NodeGraphNode")
+	return get_stylebox("frame_normal", "NodeGraphNode")
+
 func _draw() -> void:
 	_top_layer.raise()
 	
-	var stylebox = get_stylebox("body")
-	draw_style_box(stylebox, Rect2(Vector2(), get_size()))
+	draw_style_box(_get_frame_stylebox(), Rect2(Vector2(), get_size()))
 
 func _top_layer_draw() -> void:
-	var stylebox = get_stylebox("border_normal")
+	var stylebox = border_normal_stylebox
 	if selected:
-		stylebox = get_stylebox("border_selected")
+		stylebox = border_selected_stylebox
 	
 	_top_layer.draw_style_box(stylebox, Rect2(Vector2(), get_size()))
 	
@@ -295,6 +292,8 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		for port in _ports:
 			port.position_dirty = true
+	elif what == NOTIFICATION_THEME_CHANGED:
+		_cache_border_styleboxes()
 
 # Returns port position in graph coordinates
 func get_port_position(index: int) -> Vector2:

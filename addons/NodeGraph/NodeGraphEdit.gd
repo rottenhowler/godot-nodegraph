@@ -6,8 +6,9 @@ export(Dictionary) var allowed_connections
 
 enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
 
-var _top_layer: CanvasItem
 var scroll_offset: Vector2 = Vector2()
+
+var _top_layer: CanvasItem
 
 var _port_filter_settings_pool = PortFilterSettingsPool.new()
 var _connecting_port: PortInfo = null
@@ -126,8 +127,7 @@ func _make_transparent(color: Color, amount: float) -> Color:
 func _draw() -> void:
 	_top_layer.raise()
 	
-	var stylebox = StyleBoxFlat.new()
-#	draw_style_box(stylebox, Rect2(rect_position, rect_size))
+	draw_style_box(get_stylebox("frame", "NodeGraphEdit"), Rect2(rect_position, rect_size))
 
 	for connection in connections:
 		draw_polyline(connection._curve.get_baked_points(), connection.source_node.get_port(connection.source_port).color, 2.0, true)
@@ -137,20 +137,16 @@ func _draw() -> void:
 
 func _top_layer_draw() -> void:
 	if _box_selecting:
-		var box_color = Color.white
+		var stylebox_name = "selection_normal"
 		match _box_selection_mode:
 			SelectionMode.NORMAL:
 				pass
 			SelectionMode.ADDITIVE:
-				box_color = Color.green
+				stylebox_name = "selection_additive"
 			SelectionMode.SUBTRACTIVE:
-				box_color = Color.red
+				stylebox_name = "selection_subtractive"
 		
-		var stylebox_boxselect = StyleBoxFlat.new()
-		stylebox_boxselect.bg_color = _make_transparent(box_color, 0.1)
-		stylebox_boxselect.border_color = _make_transparent(box_color, 0.3)
-		stylebox_boxselect.set_border_width_all(1.0)
-		_top_layer.draw_style_box(stylebox_boxselect, _get_selection_box())
+		_top_layer.draw_style_box(get_stylebox(stylebox_name, "NodeGraphEdit"), _get_selection_box())
 
 func _on_child_entered_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
