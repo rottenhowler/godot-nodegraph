@@ -2,6 +2,14 @@ tool
 class_name NodeGraphEdit
 extends Control
 
+signal node_selection_changed(node)
+signal node_position_changed(node)
+signal node_size_changed(node)
+
+signal connection_request(source_node, source_port, destination_node, destination_port)
+signal disconnection_request(source_node, source_port, destination_node, destination_port)
+signal connection_with_empty(source_node, source_port, release_position)
+
 export(Dictionary) var allowed_connections
 
 enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
@@ -12,6 +20,7 @@ var _top_layer: CanvasItem
 
 var _port_filter_settings_pool = PortFilterSettingsPool.new()
 var _connecting_port: PortInfo = null
+# Current connection curve in node space
 var _connecting_curve: Curve2D
 
 var _last_pressed_node: NodeGraphNode = null
@@ -20,18 +29,46 @@ var _distance_dragged: int = 0
 var _panning: bool = false
 var _box_selecting: bool = false
 var _box_selection_mode: int = SelectionMode.NORMAL setget _set_box_selection_mode
+# Selection box coordinates in screen space
 var _box_select_start: Vector2
 var _box_select_end: Vector2
 
+var _cutting: bool = false
+var _cut_points = PoolVector2Array()
+
+var snap: float = 10
+
+var zoom: float = 1.0 setget _set_zoom
+export(float) var zoom_min = 0.1
+export(float) var zoom_max = 4.0
+export(float) var zoom_step = 0.1
+
+func calculate_aabb(points: Array) -> Rect2:
+	var xmin = points[0].x
+	var xmax = points[0].x
+	var ymin = points[0].y
+	var ymax = points[0].y
+	for point in points:
+		xmin = min(xmin, point.x)
+		xmax = max(xmax, point.x)
+		ymin = min(ymin, point.y)
+		ymax = max(ymax, point.y)
+	return Rect2(xmin, ymin, xmax - xmin, ymax - ymin)
+
 class Connection:
+	var node_graph_edit: NodeGraphEdit
 	var source_node: NodeGraphNode
 	var source_port: int
 	var destination_node: NodeGraphNode
 	var destination_port: int
 	
+	# Connection curve in screen space
 	var _curve: Curve2D
+	# Bounding box in screen space
+	var _aabb: Rect2
 	
-	func _init(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int):
+	func _init(node_graph_edit: NodeGraphEdit, source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int):
+		self.node_graph_edit = node_graph_edit
 		self.source_node = source_node
 		self.source_port = source_port
 		self.destination_node = destination_node
@@ -43,10 +80,11 @@ class Connection:
 		self.update_curve()
 
 	func update_curve() -> void:
-		_curve.set_point_position(0, source_node.get_port_position(source_port))
-		_curve.set_point_out(0, source_node.get_port_control_point(source_port))
-		_curve.set_point_position(1, destination_node.get_port_position(destination_port))
-		_curve.set_point_in(1, destination_node.get_port_control_point(destination_port))
+		_curve.set_point_position(0, node_graph_edit.node_to_screen_position(source_node.get_port_position(source_port)))
+		_curve.set_point_out(0, source_node.get_port_control_point(source_port) * node_graph_edit.zoom)
+		_curve.set_point_position(1, node_graph_edit.node_to_screen_position(destination_node.get_port_position(destination_port)))
+		_curve.set_point_in(1, destination_node.get_port_control_point(destination_port) * node_graph_edit.zoom)
+		_aabb = node_graph_edit.calculate_aabb(_curve.get_baked_points())
 
 class NodeGraphNodeIterator:
 	var graph_edit: NodeGraphEdit
@@ -73,14 +111,60 @@ class NodeGraphNodeIterator:
 	func _iter_get(arg):
 		return graph_edit.get_child(index)
 
-class SelectedNodesIterator:
+class ReverseNodeGraphNodeIterator:
+	var graph_edit: NodeGraphEdit
+	var index: int
+	
+	func _init(graph_edit: NodeGraphEdit):
+		self.graph_edit = graph_edit
+	
+	func _advance() -> bool:
+		while index > 0:
+			if graph_edit.get_child(index-1) is NodeGraphNode:
+				return true
+			index -= 1
+		return false
+	
+	func _iter_init(arg) -> bool:
+		index = graph_edit.get_child_count()
+		return _advance()
+	
+	func _iter_next(arg) -> bool:
+		index -= 1
+		return _advance()
+	
+	func _iter_get(arg):
+		return graph_edit.get_child(index-1)
+
+class CollectionIterator:
+	var collection: Array
+	var index: int
+	
+	func _init(collection: Array):
+		self.collection = collection
+	
+	func _iter_init(arg) -> bool:
+		index = 0
+		return index < collection.size()
+	
+	func _iter_next(arg) -> bool:
+		index += 1
+		return index < collection.size()
+	
+	func _iter_get(arg):
+		return collection[index]
+
+class FilteringIterator:
 	var iterator
-	func _init(node_iterator):
-		iterator = node_iterator
+	func _init(iterator):
+		self.iterator = iterator
+	
+	func _matches(obj) -> bool:
+		return true
 	
 	func _advance() -> bool:
 		while true:
-			if iterator._iter_get(null).selected:
+			if _matches(iterator._iter_get(null)):
 				break
 			if !iterator._iter_next(null):
 				return false
@@ -99,6 +183,13 @@ class SelectedNodesIterator:
 	func _iter_get(arg):
 		return iterator._iter_get(arg)
 	
+class SelectedNodesIterator extends FilteringIterator:
+	func _init(iterator).(iterator):
+		pass
+	
+	func _matches(node: NodeGraphNode) -> bool:
+		return node and node.selected
+
 var connections: Array = []
 
 func _init():
@@ -107,12 +198,16 @@ func _init():
 	_top_layer.set_anchors_preset(Control.PRESET_WIDE)
 	_top_layer.mouse_filter = MOUSE_FILTER_PASS
 	add_child(_top_layer)
+	
+	_cut_points.resize(2)
 
 func _enter_tree() -> void:
 	connect("child_entered_tree", self, "_on_child_entered_tree")
 	connect("child_exiting_tree", self, "_on_child_exiting_tree")
 
 func _ready() -> void:
+	rect_clip_content = true
+	
 	_dragging = false
 	_panning = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -127,13 +222,41 @@ func _make_transparent(color: Color, amount: float) -> Color:
 func _draw() -> void:
 	_top_layer.raise()
 	
-	draw_style_box(get_stylebox("frame", "NodeGraphEdit"), Rect2(rect_position, rect_size))
+	draw_style_box(get_stylebox("frame", "NodeGraphEdit"), Rect2(Vector2(), rect_size))
 
 	for connection in connections:
-		draw_polyline(connection._curve.get_baked_points(), connection.source_node.get_port(connection.source_port).color, 2.0, true)
+		var points = connection._curve.get_baked_points()
+		var color = connection.source_node.get_port(connection.source_port).color
+		draw_polyline(points, color, 2.0 * zoom, true)
+		
+#		var p = points[points.size()-1]
+#		var i = points.size() - 1
+#		var l = 0
+#		while i > 0 and l < 25:
+#			i -= 1
+#			l += (points[i] + points[i+1]).length()
+#		var d = (points[i] - p).normalized() * 15 * zoom
+#		print("i = ", i)
+#		print("l = ", l)
+#		var n = Vector2(-d.y, d.x) * 0.5
+#		var triangle = PoolVector2Array()
+#		triangle.push_back(p)
+#		triangle.push_back(p + d)
+##		triangle.push_back(p + d + n)
+##		triangle.push_back(p + d - n)
+#		var colors = PoolColorArray()
+#		colors.push_back(color)
+#		colors.push_back(color)
+#		colors.push_back(color)
+##		draw_polygon(triangle, colors)
+#		draw_polyline(triangle, Color.red, 2.0 * zoom)
 
 	if _connecting_port:
-		draw_polyline(_connecting_curve.get_baked_points(), _connecting_port.node.get_port(_connecting_port.index).color, 2.0, true)
+		var curve_points = _connecting_curve.get_baked_points()
+		var points = PoolVector2Array()
+		for point in curve_points:
+			points.push_back(node_to_screen_position(point))
+		draw_polyline(points, _connecting_port.node.get_port(_connecting_port.index).color, 2.0 * zoom, true)
 
 func _top_layer_draw() -> void:
 	if _box_selecting:
@@ -147,52 +270,46 @@ func _top_layer_draw() -> void:
 				stylebox_name = "selection_subtractive"
 		
 		_top_layer.draw_style_box(get_stylebox(stylebox_name, "NodeGraphEdit"), _get_selection_box())
+	
+	if _cutting:
+		_top_layer.draw_polyline(_cut_points, Color.red)
 
 func _on_child_entered_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
 		return
 	
+	child.rect_position = node_to_screen_position(child.position)
+	child.rect_size = child.size
+	child.rect_scale = Vector2(zoom, zoom)
+	
 	child.connect("item_rect_changed", self, "_on_node_rect_changed", [child])
 #	child.connect("port_added", self, "_on_node_port_added")
-	child.connect("port_removed", self, "_on_node_port_removed", [child])
 #	child.connect("port_updated", self, "_on_node_port_updated")
-#	child.connect("resized", self, "_on_node_resized", [child])
-	
-	# TODO: register node bounding box
-	# TODO: register all node ports
+	child.connect("port_removed", self, "_on_node_port_removed", [child])
+	child.connect("selection_changed", self, "_on_node_selection_changed", [child])
+	child.connect("position_changed", self, "_on_node_position_changed", [child])
+	child.connect("size_changed", self, "_on_node_size_changed", [child])
 
 func _on_child_exiting_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
 		return
 	
+	child.disconnect("selection_changed", self, "_on_node_selection_changed")
+	child.disconnect("position_changed", self, "_on_node_position_changed")
+	child.disconnect("size_changed", self, "_on_node_size_changed")
 	child.disconnect("item_rect_changed", self, "_on_node_rect_changed")
 #	child.disconnect("port_added", self, "_on_node_port_added")
-	child.disconnect("port_removed", self, "_on_node_port_removed")
 #	child.disconnect("port_updated", self, "_on_node_port_updated")
-#	child.disconnect("resized", self, "_on_node_resized")
+	child.disconnect("port_removed", self, "_on_node_port_removed")
 
 	for connection in get_node_connections(child):
 		remove_connection(connection)
-	# TODO: unregister node bounding box
-	# TODO: unregister all node ports
 
-#func _on_node_port_added(node: NodeGraphNode, port) -> void:
-#	# TODO: register port
-#	pass
-#
 func _on_node_port_removed(node: NodeGraphNode, index: int) -> void:
 	for connection in get_node_connections(node):
 		if connection.source_port != index and connection.destination_port != index:
 			continue
 		connections.erase(connection)
-
-#func _on_node_port_updated(node: NodeGraphNode, port) -> void:
-#	# TODO: update port
-#	pass
-#
-#func _on_node_resized(node: Control) -> void:
-#	# TODO: update node bounding box
-#	pass
 
 func _on_node_rect_changed(node: NodeGraphNode) -> void:
 	for connection in connections:
@@ -201,8 +318,17 @@ func _on_node_rect_changed(node: NodeGraphNode) -> void:
 		
 		connection.update_curve()
 
+func _on_node_selection_changed(node: NodeGraphNode) -> void:
+	emit_signal("node_selection_changed", node)
+
+func _on_node_position_changed(node: NodeGraphNode) -> void:
+	node.rect_position = node_to_screen_position(node.position)
+	emit_signal("node_position_changed", node)
+
+func _on_node_size_changed(node: NodeGraphNode) -> void:
+	emit_signal("node_size_changed", node)
+
 func _set_box_selection_mode(mode: int) -> void:
-	print("Set box selection mode to ", mode)
 	if _box_selection_mode == mode:
 		return
 	_box_selection_mode = mode
@@ -216,17 +342,50 @@ func _get_selection_box() -> Rect2:
 	ys.sort()
 	return Rect2(xs[0], ys[0], xs[1] - xs[0], ys[1] - ys[0])
 
+func _set_zoom(value: float) -> void:
+	zoom = min(zoom_max, max(zoom_min, value))
+	_update_zoom()
+
+func zoom_at(position: Vector2, amount: float) -> void:
+	var new_zoom = min(zoom_max, max(zoom_min, zoom + amount))
+	if new_zoom == zoom:
+		return
+	scroll_offset = position / new_zoom - screen_to_node_position(position)
+	zoom = new_zoom
+	_update_zoom()
+
+func _update_zoom() -> void:
+	for node in get_nodes():
+		node.rect_scale = Vector2(zoom, zoom)
+		node.rect_position = node_to_screen_position(node.position)
+	for connection in connections:
+		connection.update_curve()
+	update()
+	_top_layer.update()
+
 # Returns iterator for all nodes
 func get_nodes():
 	return NodeGraphNodeIterator.new(self)
+
+func get_nodes_reversed():
+	return ReverseNodeGraphNodeIterator.new(self)
 
 # Returns iterator for selected nodes only
 func get_selected_nodes():
 	return SelectedNodesIterator.new(get_nodes())
 
+func set_selected_nodes(nodes: Array) -> void:
+	for node in get_selected_nodes():
+		if !nodes.has(node):
+			node.selected = false
+	for node in nodes:
+		if !(node is NodeGraphNode):
+			continue
+		node.selected = true
+
 func _find_node_at_position(position: Vector2) -> NodeGraphNode:
-	for node in get_nodes():
-		if node.get_rect().has_point(position):
+	for node in get_nodes_reversed():
+		if node.get_node_rect().has_point(position):
 			return node
 		
 	return null
@@ -306,30 +465,46 @@ func _unhandled_input(event):
 		
 		_set_box_selection_mode(mode)
 
+func screen_to_node_position(screen_position: Vector2) -> Vector2:
+	return screen_position / zoom - scroll_offset
+
+func node_to_screen_position(node_position: Vector2) -> Vector2:
+	return (node_position + scroll_offset) * zoom
+
 func _gui_input(event):
 	if _connecting_port:
 		if event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
 			var settings = _port_filter_settings_pool.acquire()
 			settings.enabled = true
-			var port_info = _find_port_at_position(event.position + scroll_offset, settings)
+			var port_info = _find_port_at_position(screen_to_node_position(event.position), settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and is_connection_allowed(_connecting_port.node.get_port(_connecting_port.index).type, port_info.node.get_port(port_info.index).type):
-				connect_nodes(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
+			if port_info:
+				if is_connection_allowed(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index):
+					emit_signal("connection_request", _connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
+					# connect_nodes(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
+			else:
+				emit_signal("connection_with_empty", _connecting_port.node, _connecting_port.index, screen_to_node_position(event.position))
 			
 			_connecting_port = null
+			mouse_default_cursor_shape = CURSOR_ARROW
 			accept_event()
 			update()
 		elif event is InputEventMouseMotion:
-			var position = event.position + scroll_offset
+			var position = screen_to_node_position(event.position)
 			
 			var settings = _port_filter_settings_pool.acquire()
 			settings.enabled = true
 			var port_info = _find_port_at_position(position, settings)
 			_port_filter_settings_pool.release(settings)
-			if port_info and is_connection_allowed(_connecting_port.node.get_port(_connecting_port.index).type, port_info.node.get_port(port_info.index).type):
+			if port_info and is_connection_allowed(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index):
 				_connecting_curve.set_point_position(1, port_info.node.get_port_position(port_info.index))
 				_connecting_curve.set_point_in(1, port_info.node.get_port_control_point(port_info.index))
+				mouse_default_cursor_shape = CURSOR_CROSS
 			else:
+				if port_info:
+					mouse_default_cursor_shape = CURSOR_FORBIDDEN
+				else:
+					mouse_default_cursor_shape = CURSOR_ARROW
 				_connecting_curve.set_point_position(1, position)
 				var control = _connecting_curve.get_point_out(0)
 				var direction = position - _connecting_curve.get_point_position(0)
@@ -345,16 +520,17 @@ func _gui_input(event):
 	
 	if _box_selecting:
 		if event is InputEventMouseMotion:
-			_box_select_end = event.position + scroll_offset
+			_box_select_end = event.position
 			accept_event()
 			_top_layer.update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
 			# TODO: box selection
 			_box_selecting = false
 			var box = _get_selection_box()
+			box = Rect2(screen_to_node_position(box.position), box.size / zoom)
 			if event.alt:
 				for node in get_nodes():
-					if !box.encloses(node.get_rect()):
+					if !box.encloses(node.get_node_rect()):
 						continue
 					if !node.selected:
 						continue
@@ -364,7 +540,7 @@ func _gui_input(event):
 					for node in get_selected_nodes():
 						node.selected = false
 				for node in get_nodes():
-					if !box.encloses(node.get_rect()):
+					if !box.encloses(node.get_node_rect()):
 						continue
 					if node.selected:
 						continue
@@ -379,13 +555,13 @@ func _gui_input(event):
 			_last_pressed_node = null
 			
 			for node in get_selected_nodes():
-				node.rect_position += event.relative
+				node.position += event.relative / zoom
 				for connection in get_node_connections(node):
 					connection.update_curve()
 			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
-			if _distance_dragged == 0:
+			if _last_pressed_node:
 				# It was a click on a node
 				for selected_node in get_selected_nodes():
 					selected_node.selected = false
@@ -393,15 +569,17 @@ func _gui_input(event):
 				_last_pressed_node = null
 			
 			_dragging = false
+			mouse_default_cursor_shape = CURSOR_ARROW
 			accept_event()
 			update()
 		return
 	
 	if _panning:
 		if event is InputEventMouseMotion:
-			# scroll_offset += event.relative
-			for child in get_nodes():
-				child.rect_position += event.relative
+			scroll_offset += event.relative / zoom
+			_update_zoom()
+#			for child in get_nodes():
+#				child.rect_position += event.relative
 			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and !event.pressed:
@@ -410,8 +588,35 @@ func _gui_input(event):
 			update()
 		return
 
+	if _cutting:
+		if event is InputEventMouseMotion:
+			_cut_points[1] = event.position
+			accept_event()
+			_top_layer.update()
+		elif event is InputEventMouseButton and event.button_index == BUTTON_RIGHT and !event.pressed:
+			_cutting = false
+			var cut_aabb = calculate_aabb(_cut_points)
+			var connections_to_erase = []
+			for connection in connections:
+				if !cut_aabb.intersects(connection._aabb):
+					continue
+				var intersects = false
+				var connection_points = connection._curve.get_baked_points()
+				for i in range(1, connection_points.size()):
+					if Geometry.segment_intersects_segment_2d(_cut_points[0], _cut_points[1], connection_points[i-1], connection_points[i]):
+						intersects = true
+						break
+				if intersects:
+					connections_to_erase.push_back(connection)
+			for conn in connections_to_erase:
+				emit_signal("disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
+			accept_event()
+			update()
+			_top_layer.update()
+		return
+
 	if event is InputEventMouseButton and event.button_index == BUTTON_LEFT and event.pressed:
-		var position = event.position + scroll_offset
+		var position = screen_to_node_position(event.position)
 		
 		var settings = _port_filter_settings_pool.acquire()
 		settings.enabled = true
@@ -424,15 +629,19 @@ func _gui_input(event):
 			if conns.size() > 0:
 				# There are already connections ending at this port.
 				# Disconnect one of them and start connecting as if it was new.
-				port_info.node = conns[0].source_node
-				port_info.index = conns[0].source_port
-				connections.erase(conns[0])
+				var conn = conns[0]
+				# Emit signal and check if signal handler has removed the connection.
+				# If so, convert it to a connecting state
+				emit_signal("disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
+				if !connections.has(conn):
+					port_info.node = conn.source_node
+					port_info.index = conn.source_port
 			
 			_connecting_port = port_info
 			# Setup temporal connection curve
 			_connecting_curve.set_point_position(0, port_info.node.get_port_position(port_info.index))
 			_connecting_curve.set_point_out(0, port_info.node.get_port_control_point(port_info.index))
-			_connecting_curve.set_point_position(1, event.position + scroll_offset)
+			_connecting_curve.set_point_position(1, screen_to_node_position(event.position))
 			_connecting_curve.set_point_in(1, -port_info.node.get_port_control_point(port_info.index))
 			accept_event()
 			update()
@@ -445,9 +654,6 @@ func _gui_input(event):
 				if !event.shift:
 					for selected_node in get_selected_nodes():
 						selected_node.selected = false
-#					_dragging = true
-#					_distance_dragged = 0
-#					_last_pressed_node = node
 				node.selected = true
 			else:
 				if event.shift:
@@ -456,6 +662,7 @@ func _gui_input(event):
 					_last_pressed_node = node
 					_dragging = true
 					_distance_dragged = 0
+					mouse_default_cursor_shape = CURSOR_MOVE
 			accept_event()
 			update()
 			return
@@ -468,8 +675,8 @@ func _gui_input(event):
 			_box_selection_mode = SelectionMode.ADDITIVE
 		else:
 			_box_selection_mode = SelectionMode.NORMAL
-		_box_select_start = position
-		_box_select_end = position
+		_box_select_start = event.position
+		_box_select_end = event.position
 		
 		accept_event()
 		_top_layer.update()
@@ -477,31 +684,49 @@ func _gui_input(event):
 	
 	if event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and event.pressed:
 		_panning = true
+		mouse_default_cursor_shape = CURSOR_DRAG
+		accept_event()
+		return
+	
+	if event is InputEventMouseButton and event.button_index == BUTTON_RIGHT and event.pressed:
+		_cutting = true
+		_cut_points[0] = event.position
+		_cut_points[1] = event.position
 		accept_event()
 		return
 	
 	if event is InputEventMouseButton:
 		if event.button_index == BUTTON_WHEEL_UP:
-			rect_scale *= 1.11
+			zoom_at(event.position, zoom_step)
 		elif event.button_index == BUTTON_WHEEL_DOWN:
-			rect_scale *= 0.9
+			zoom_at(event.position, -zoom_step)
 		accept_event()
 		return
-
-# TODO: implement different cursor shapes
-func get_cursor_shape(position: Vector2 = Vector2()) -> int:
-	var filter = _port_filter_settings_pool.acquire()
-	var port_info = _find_port_at_position(position, filter)
-	_port_filter_settings_pool.release(filter)
+		
+	var position = screen_to_node_position(event.position)
+	
+	var settings = _port_filter_settings_pool.acquire()
+	settings.enabled = true
+	var port_info = _find_port_at_position(position, settings)
+	_port_filter_settings_pool.release(settings)
 	if port_info:
-		return CURSOR_CROSS
-	return CURSOR_ARROW
+		mouse_default_cursor_shape = CURSOR_CROSS
+	else:
+		mouse_default_cursor_shape = CURSOR_ARROW
 
 # Returns true if connection from given source port type to given destination port type is allowed
-func is_connection_allowed(source_type: int, destination_type: int) -> bool:
-	if allowed_connections.empty():
-		return true
-	return allowed_connections.has(source_type) and allowed_connections[source_type].has(destination_type)
+func is_connection_allowed(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int) -> bool:
+	var p1 = source_node.get_port(source_port)
+	var p2 = destination_node.get_port(destination_port)
+	if !p1 or !p2:
+		return false
+	
+	if allowed_connections:
+		return allowed_connections.has(p1.type) and allowed_connections[p1.type].has(p2.type)
+	
+	# By default only allow everything
+	# return p1.direction == NodeGraphNode.OUTPUT and p2.direction == NodeGraphNode.INPUT and p1.type == p2.type
+	return true
 
 # Creates connection between given nodes&ports
 func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int) -> void:
@@ -521,7 +746,7 @@ func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_nod
 		print("add_connection: Invalid destination port")
 		return
 	
-	var connection = Connection.new(source_node, source_port, destination_node, destination_port)
+	var connection = Connection.new(self, source_node, source_port, destination_node, destination_port)
 	connections.push_back(connection)
 	update()
 
@@ -536,6 +761,9 @@ func disconnect_nodes(source_node: NodeGraphNode, source_port: int, destination_
 # Removes given connection
 func remove_connection(connection: Connection) -> void:
 	connections.erase(connection)
+
+func clear_connections() -> void:
+	connections = []
 
 # Returns all connections
 func get_connections() -> Array:

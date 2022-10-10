@@ -2,8 +2,9 @@ tool
 class_name NodeGraphNode
 extends Container
 
-signal selected
-signal deselected
+signal selection_changed
+signal position_changed
+signal size_changed
 
 signal port_added(port_index)
 signal port_updated(port_index)
@@ -54,7 +55,7 @@ class Port extends Resource:
 		
 		type = value
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
 	func _set_color(value: Color) -> void:
 		if color == value:
@@ -62,7 +63,7 @@ class Port extends Resource:
 		
 		color = value
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
 	func _set_enabled(value: bool) -> void:
 		if enabled == value:
@@ -70,7 +71,7 @@ class Port extends Resource:
 		
 		enabled = value
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
 	func _set_hanchor(value: float) -> void:
 		if hanchor == value:
@@ -79,7 +80,7 @@ class Port extends Resource:
 		hanchor = value
 		position_dirty = true
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
 	func _set_vanchor(value: float) -> void:
 		if vanchor == value:
@@ -88,7 +89,7 @@ class Port extends Resource:
 		vanchor = value
 		position_dirty = true
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
 	func _set_offset(value: Vector2) -> void:
 		if offset == value:
@@ -97,9 +98,28 @@ class Port extends Resource:
 		offset = value
 		position_dirty = true
 		_queue_port_updated()
-		node.update()
+		node.update_all()
 
-export(Vector2) var node_position: Vector2 setget set_node_position, get_node_position
+class PortIterator:
+	var node: NodeGraphNode
+	var index: int
+	
+	func _init(node: NodeGraphNode):
+		self.node = node
+	
+	func _iter_init(arg) -> bool:
+		index = 0
+		return index < node.get_port_count() 
+	
+	func _iter_next(arg) -> bool:
+		index += 1
+		return index < node.get_port_count()
+	
+	func _iter_get(arg):
+		return node.get_port(index)
+
+export(Vector2) var position: Vector2 setget _set_position
+export(Vector2) var size: Vector2 setget _set_size
 
 export(bool) var selected: bool setget set_selected
 export(int) var port_count: int setget set_port_count, get_port_count
@@ -112,7 +132,6 @@ var border_selected_stylebox: StyleBox
 
 func _init():
 	_top_layer = Control.new()
-	_top_layer.connect("draw", self, "_top_layer_draw")
 	_top_layer.set_anchors_preset(Control.PRESET_WIDE)
 	_top_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_top_layer)
@@ -120,23 +139,36 @@ func _init():
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	connect("item_rect_changed", self, "_on_rect_changed")
+	_top_layer.connect("draw", self, "_top_layer_draw")
 	
 	_cache_border_styleboxes()
 
-func get_node_position() -> Vector2:
-	if get_parent():
-		return rect_position - get_parent().scroll_offset
-	return rect_position
+func update_all() -> void:
+	update()
+	if _top_layer:
+		_top_layer.update()
 
-func set_node_position(new_position: Vector2) -> void:
-	var offset: Vector2 = Vector2()
-	if get_parent():
-		offset = get_parent().scroll_offset
-	rect_position = new_position + offset
+func get_node_rect() -> Rect2:
+	return Rect2(position, size)
+
+func _set_position(new_position: Vector2) -> void:
+	if position == new_position:
+		return
+
+	position = new_position
+	emit_signal("position_changed")
+
+func _set_size(new_size: Vector2) -> void:
+	if size == new_size:
+		return
+	
+	size = new_size
+	emit_signal("size_changed")
 
 func _on_rect_changed() -> void:
 	for port in _ports:
 		port.position_dirty = true
+	update_all()
 
 func _get_property_list() -> Array:
 	var property_list = []
@@ -215,7 +247,7 @@ func _set_port_property(path: String, value) -> bool:
 			_ports[index].position_dirty = true
 		_:
 			return false
-	update()
+	update_all()
 	return true
 
 func get_port_count() -> int:
@@ -238,7 +270,7 @@ func set_port_count(value: int) -> void:
 			emit_signal("port_added", i)
 	
 	property_list_changed_notify()
-	update()
+	update_all()
 
 func get_port(index: int) -> Port:
 	return _ports[index]
@@ -246,15 +278,11 @@ func get_port(index: int) -> Port:
 func set_selected(value: bool) -> void:
 	if selected == value:
 		return
-	
+
 	selected = value
-	if selected:
-		emit_signal("selected")
-	else:
-		emit_signal("deselected")
-	
-	_top_layer.update()
-	update()
+	emit_signal("selection_changed")
+
+	update_all()
 
 func _cache_border_styleboxes() -> void:
 	border_normal_stylebox = get_stylebox("frame_normal", "NodeGraphNode").duplicate()
@@ -300,7 +328,7 @@ func get_port_position(index: int) -> Vector2:
 	if index < 0 or index >= _ports.size():
 		return Vector2()
 	
-	return rect_position + _ports[index].get_position()
+	return position + _ports[index].get_position()
 
 # Returns direction of connection point tangent at port
 # Usually points away from node, depending on which side port closer to
