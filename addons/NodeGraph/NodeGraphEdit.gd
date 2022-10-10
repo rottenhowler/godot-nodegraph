@@ -9,6 +9,7 @@ signal node_size_changed(node)
 signal connection_request(source_node, source_port, destination_node, destination_port)
 signal disconnection_request(source_node, source_port, destination_node, destination_port)
 signal connection_with_empty(source_node, source_port, release_position)
+signal delete_request(node)
 
 export(Dictionary) var allowed_connections
 
@@ -191,6 +192,12 @@ class SelectedNodesIterator extends FilteringIterator:
 		return node and node.selected
 
 var connections: Array = []
+
+func array(items) -> Array:
+	var a = []
+	for item in items:
+		a.push_back(item)
+	return a
 
 func _init():
 	_top_layer = Control.new()
@@ -464,6 +471,9 @@ func _unhandled_input(event):
 				mode = SelectionMode.ADDITIVE
 		
 		_set_box_selection_mode(mode)
+	elif event is InputEventKey and (event.scancode == KEY_DELETE or event.scancode == KEY_BACKSPACE):
+		for node in array(get_selected_nodes()):
+			emit_signal("delete_request", node)
 
 func screen_to_node_position(screen_position: Vector2) -> Vector2:
 	return screen_position / zoom - scroll_offset

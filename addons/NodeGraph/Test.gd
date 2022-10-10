@@ -38,3 +38,5 @@ func _on_AddNodePopupMenu_id_pressed(id):
 		node.position = graph_edit.screen_to_node_position(add_node_popup_menu.rect_position) - node.get_port(0).get_position()
 		graph_edit.connect_nodes(add_node_source_node, add_node_source_port, node, 0)
 
+func _on_MyGraphEdit_delete_request(node):
+	node.free()

@@ -132,5 +132,6 @@ items = [ "Add Node", null, 0, false, false, 0, 0, null, "", false ]
 
 [connection signal="connection_request" from="MyGraphEdit" to="." method="_on_MyGraphEdit_connection_request"]
 [connection signal="connection_with_empty" from="MyGraphEdit" to="." method="_on_MyGraphEdit_connection_with_empty"]
+[connection signal="delete_request" from="MyGraphEdit" to="." method="_on_MyGraphEdit_delete_request"]
 [connection signal="disconnection_request" from="MyGraphEdit" to="." method="_on_MyGraphEdit_disconnection_request"]
 [connection signal="id_pressed" from="AddNodePopupMenu" to="." method="_on_AddNodePopupMenu_id_pressed"]
