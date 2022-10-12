@@ -4,7 +4,6 @@ extends Control
 
 signal node_selection_changed(node)
 signal node_position_changed(node)
-signal node_size_changed(node)
 signal node_layer_changed(node)
 
 signal connection_request(source_node, source_port, destination_node, destination_port)
@@ -304,7 +303,6 @@ func _on_child_entered_tree(child: Node) -> void:
 		return
 	
 	child.rect_position = node_to_screen_position(child.position)
-	child.rect_size = child.size
 	child.rect_scale = Vector2(zoom, zoom)
 	
 	child.connect("item_rect_changed", self, "_on_node_rect_changed", [child])
@@ -313,7 +311,6 @@ func _on_child_entered_tree(child: Node) -> void:
 	child.connect("port_removed", self, "_on_node_port_removed", [child])
 	child.connect("selection_changed", self, "_on_node_selection_changed", [child])
 	child.connect("position_changed", self, "_on_node_position_changed", [child])
-	child.connect("size_changed", self, "_on_node_size_changed", [child])
 	child.connect("layer_changed", self, "_on_node_layer_changed", [child])
 	
 	_queue_resort()
@@ -324,7 +321,6 @@ func _on_child_exiting_tree(child: Node) -> void:
 	
 	child.disconnect("selection_changed", self, "_on_node_selection_changed")
 	child.disconnect("position_changed", self, "_on_node_position_changed")
-	child.disconnect("size_changed", self, "_on_node_size_changed")
 	child.disconnect("layer_changed", self, "_on_node_layer_changed")
 	child.disconnect("item_rect_changed", self, "_on_node_rect_changed")
 #	child.disconnect("port_added", self, "_on_node_port_added")
@@ -353,9 +349,6 @@ func _on_node_selection_changed(node: NodeGraphNode) -> void:
 func _on_node_position_changed(node: NodeGraphNode) -> void:
 	node.rect_position = node_to_screen_position(node.position)
 	emit_signal("node_position_changed", node)
-
-func _on_node_size_changed(node: NodeGraphNode) -> void:
-	emit_signal("node_size_changed", node)
 
 func _on_node_layer_changed(node: NodeGraphNode) -> void:
 	emit_signal("node_layer_changed", node)

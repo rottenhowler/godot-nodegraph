@@ -4,7 +4,6 @@ extends Container
 
 signal selection_changed
 signal position_changed
-signal size_changed
 signal layer_changed
 
 signal port_added(port_index)
@@ -120,7 +119,6 @@ class PortIterator:
 		return node.get_port(index)
 
 export(Vector2) var position: Vector2 setget _set_position
-export(Vector2) var size: Vector2 setget _set_size
 
 export(int) var layer setget set_layer
 export(bool) var selected: bool setget set_selected
@@ -146,7 +144,7 @@ func update_all() -> void:
 		_top_layer.update()
 
 func get_node_rect() -> Rect2:
-	return Rect2(position, size)
+	return Rect2(position, rect_size)
 
 func _set_position(new_position: Vector2) -> void:
 	if position == new_position:
@@ -154,13 +152,6 @@ func _set_position(new_position: Vector2) -> void:
 
 	position = new_position
 	emit_signal("position_changed")
-
-func _set_size(new_size: Vector2) -> void:
-	if size == new_size:
-		return
-	
-	size = new_size
-	emit_signal("size_changed")
 
 func _on_rect_changed() -> void:
 	for port in _ports:
