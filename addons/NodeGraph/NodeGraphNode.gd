@@ -129,9 +129,6 @@ export(int) var port_count: int setget set_port_count, get_port_count
 var _top_layer: CanvasItem
 var _ports: Array = []
 
-var border_normal_stylebox: StyleBox
-var border_selected_stylebox: StyleBox
-
 func _init():
 	_top_layer = Control.new()
 	_top_layer.set_anchors_preset(Control.PRESET_WIDE)
@@ -142,8 +139,6 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	connect("item_rect_changed", self, "_on_rect_changed")
 	_top_layer.connect("draw", self, "_top_layer_draw")
-	
-	_cache_border_styleboxes()
 
 func update_all() -> void:
 	update()
@@ -293,13 +288,6 @@ func set_selected(value: bool) -> void:
 
 	update_all()
 
-func _cache_border_styleboxes() -> void:
-	border_normal_stylebox = get_stylebox("frame_normal", "NodeGraphNode").duplicate()
-	border_normal_stylebox.draw_center = false
-	
-	border_selected_stylebox = get_stylebox("frame_selected", 'NodeGraphNode').duplicate()
-	border_selected_stylebox.draw_center = false
-
 func _get_frame_stylebox() -> StyleBox:
 	if selected:
 		return get_stylebox("frame_selected", "NodeGraphNode")
@@ -311,12 +299,6 @@ func _draw() -> void:
 	draw_style_box(_get_frame_stylebox(), Rect2(Vector2(), get_size()))
 
 func _top_layer_draw() -> void:
-	var stylebox = border_normal_stylebox
-	if selected:
-		stylebox = border_selected_stylebox
-	
-	_top_layer.draw_style_box(stylebox, Rect2(Vector2(), get_size()))
-	
 	for i in _ports.size():
 		_draw_port(_ports[i])
 
@@ -329,8 +311,6 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		for port in _ports:
 			port.position_dirty = true
-	elif what == NOTIFICATION_THEME_CHANGED:
-		_cache_border_styleboxes()
 
 # Returns port position in graph coordinates
 func get_port_position(index: int) -> Vector2:
