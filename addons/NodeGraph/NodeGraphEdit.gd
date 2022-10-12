@@ -5,6 +5,7 @@ extends Control
 signal node_selection_changed(node)
 signal node_position_changed(node)
 signal node_size_changed(node)
+signal node_layer_changed(node)
 
 signal connection_request(source_node, source_port, destination_node, destination_port)
 signal disconnection_request(source_node, source_port, destination_node, destination_port)
@@ -17,7 +18,10 @@ enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
 
 var scroll_offset: Vector2 = Vector2()
 
+var _resort_queued: bool = false
+
 var _top_layer: CanvasItem
+var _connection_layers: Dictionary
 
 var _port_filter_settings_pool = PortFilterSettingsPool.new()
 var _connecting_port: PortInfo = null
@@ -56,12 +60,18 @@ func calculate_aabb(points: Array) -> Rect2:
 		ymax = max(ymax, point.y)
 	return Rect2(xmin, ymin, xmax - xmin, ymax - ymin)
 
+class ConnectionLayer extends Control:
+	var layer: int = 0
+	var count: int = 0
+
 class Connection:
 	var node_graph_edit: NodeGraphEdit
 	var source_node: NodeGraphNode
 	var source_port: int
 	var destination_node: NodeGraphNode
 	var destination_port: int
+	
+	var layer: int
 	
 	# Connection curve in screen space
 	var _curve: Curve2D
@@ -74,6 +84,7 @@ class Connection:
 		self.source_port = source_port
 		self.destination_node = destination_node
 		self.destination_port = destination_port
+		self.layer = max(source_node.layer, destination_node.layer)
 		
 		self._curve = Curve2D.new()
 		self._curve.add_point(Vector2())
@@ -206,6 +217,8 @@ func _init():
 	_top_layer.mouse_filter = MOUSE_FILTER_PASS
 	add_child(_top_layer)
 	
+	_connection_layers = {}
+	
 	_cut_points.resize(2)
 
 func _enter_tree() -> void:
@@ -231,11 +244,6 @@ func _draw() -> void:
 	
 	draw_style_box(get_stylebox("frame", "NodeGraphEdit"), Rect2(Vector2(), rect_size))
 
-	for connection in connections:
-		var points = connection._curve.get_baked_points()
-		var color = connection.source_node.get_port(connection.source_port).color
-		draw_polyline(points, color, 2.0 * zoom, true)
-		
 #		var p = points[points.size()-1]
 #		var i = points.size() - 1
 #		var l = 0
@@ -258,12 +266,22 @@ func _draw() -> void:
 ##		draw_polygon(triangle, colors)
 #		draw_polyline(triangle, Color.red, 2.0 * zoom)
 
-	if _connecting_port:
+
+func _on_connection_layer_draw(layer: ConnectionLayer) -> void:
+	for connection in connections:
+		if connection.layer != layer.layer:
+			continue
+		
+		var points = connection._curve.get_baked_points()
+		var color = connection.source_node.get_port(connection.source_port).color
+		layer.draw_polyline(points, color, 2.0 * zoom, true)
+
+	if _connecting_port and _connecting_port.node.layer == layer.layer:
 		var curve_points = _connecting_curve.get_baked_points()
 		var points = PoolVector2Array()
 		for point in curve_points:
 			points.push_back(node_to_screen_position(point))
-		draw_polyline(points, _connecting_port.node.get_port(_connecting_port.index).color, 2.0 * zoom, true)
+		layer.draw_polyline(points, _connecting_port.node.get_port(_connecting_port.index).color, 2.0 * zoom, true)
 
 func _top_layer_draw() -> void:
 	if _box_selecting:
@@ -296,6 +314,9 @@ func _on_child_entered_tree(child: Node) -> void:
 	child.connect("selection_changed", self, "_on_node_selection_changed", [child])
 	child.connect("position_changed", self, "_on_node_position_changed", [child])
 	child.connect("size_changed", self, "_on_node_size_changed", [child])
+	child.connect("layer_changed", self, "_on_node_layer_changed", [child])
+	
+	_queue_resort()
 
 func _on_child_exiting_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
@@ -304,6 +325,7 @@ func _on_child_exiting_tree(child: Node) -> void:
 	child.disconnect("selection_changed", self, "_on_node_selection_changed")
 	child.disconnect("position_changed", self, "_on_node_position_changed")
 	child.disconnect("size_changed", self, "_on_node_size_changed")
+	child.disconnect("layer_changed", self, "_on_node_layer_changed")
 	child.disconnect("item_rect_changed", self, "_on_node_rect_changed")
 #	child.disconnect("port_added", self, "_on_node_port_added")
 #	child.disconnect("port_updated", self, "_on_node_port_updated")
@@ -334,6 +356,87 @@ func _on_node_position_changed(node: NodeGraphNode) -> void:
 
 func _on_node_size_changed(node: NodeGraphNode) -> void:
 	emit_signal("node_size_changed", node)
+
+func _on_node_layer_changed(node: NodeGraphNode) -> void:
+	emit_signal("node_layer_changed", node)
+	for connection in get_node_connections(node):
+		var new_layer = max(connection.layer, node.layer)
+		if new_layer != connection.layer:
+			_dec_connection_layer(connection.layer)
+			connection.layer = new_layer
+			_inc_connection_layer(connection.layer)
+	_queue_resort()
+
+func _inc_connection_layer(layer: int) -> void:
+	var node = _connection_layers.get(layer)
+	if !node:
+		node = ConnectionLayer.new()
+		node.layer = layer
+		node.set_anchors_preset(Control.PRESET_WIDE)
+		node.connect("draw", self, "_on_connection_layer_draw", [node])
+		var idx = get_children().bsearch_custom(node, self, "_layer_lte", true)
+		add_child(node)
+		move_child(node, idx)
+		_connection_layers[layer] = node
+	else:
+		node.update()
+	node.count += 1
+
+func _dec_connection_layer(layer: int) -> void:
+	var node = _connection_layers.get(layer)
+	if !node:
+		return
+	node.count -= 1
+	if node.count <= 0:
+		_connection_layers.erase(layer)
+		node.free()
+		return
+	node.update()
+
+func _update_connection_layer(layer: int) -> void:
+	var node = _connection_layers.get(layer, null)
+	if !node:
+		return
+	node.update()
+
+func _update_all_connection_layers() -> void:
+	for layer in _connection_layers:
+		_connection_layers[layer].update()
+
+func _get_layer(node: Node) -> int:
+	if node is NodeGraphNode:
+		return (node as NodeGraphNode).layer
+	elif node is ConnectionLayer:
+		return (node as ConnectionLayer).layer
+	return 0
+
+func _layer_lte(node1: Node, node2: Node) -> bool:
+	return _get_layer(node1) < _get_layer(node2)
+
+func _queue_resort() -> void:
+	if _resort_queued:
+		return
+	
+	_resort_queued = true
+	call_deferred("_resort")
+
+func _resort() -> void:
+	_resort_queued = false
+
+	var sorted = []
+	for i in get_child_count():
+		var child = get_child(i)
+		var layer = _get_layer(child)
+
+		var idx = 0
+		if child is ConnectionLayer:
+			idx = sorted.bsearch_custom(child, self, "_layer_lte", true)
+		else:
+			idx = sorted.bsearch_custom(child, self, "_layer_lte", false)
+		sorted.insert(idx, child)
+	
+	for i in sorted.size():
+		move_child(sorted[i], i)
 
 func _set_box_selection_mode(mode: int) -> void:
 	if _box_selection_mode == mode:
@@ -369,6 +472,7 @@ func _update_zoom() -> void:
 		connection.update_curve()
 	update()
 	_top_layer.update()
+	_update_all_connection_layers()
 
 # Returns iterator for all nodes
 func get_nodes():
@@ -495,6 +599,7 @@ func _gui_input(event):
 			else:
 				emit_signal("connection_with_empty", _connecting_port.node, _connecting_port.index, screen_to_node_position(event.position))
 			
+			_dec_connection_layer(_connecting_port.node.layer)
 			_connecting_port = null
 			mouse_default_cursor_shape = CURSOR_ARROW
 			accept_event()
@@ -526,6 +631,7 @@ func _gui_input(event):
 			
 			accept_event()
 			update()
+			_update_connection_layer(_connecting_port.node.layer)
 		return
 	
 	if _box_selecting:
@@ -568,6 +674,7 @@ func _gui_input(event):
 				node.position += event.relative / zoom
 				for connection in get_node_connections(node):
 					connection.update_curve()
+					_update_connection_layer(connection.layer)
 			accept_event()
 			update()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_LEFT and !event.pressed:
@@ -592,10 +699,12 @@ func _gui_input(event):
 #				child.rect_position += event.relative
 			accept_event()
 			update()
+			_update_all_connection_layers()
 		elif event is InputEventMouseButton and event.button_index == BUTTON_MIDDLE and !event.pressed:
 			_panning = false
 			accept_event()
 			update()
+			_update_all_connection_layers()
 		return
 
 	if _cutting:
@@ -655,6 +764,7 @@ func _gui_input(event):
 			_connecting_curve.set_point_in(1, -port_info.node.get_port_control_point(port_info.index))
 			accept_event()
 			update()
+			_inc_connection_layer(_connecting_port.node.layer)
 			return
 		
 		var node = _find_node_at_position(position)
@@ -758,6 +868,7 @@ func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_nod
 	
 	var connection = Connection.new(self, source_node, source_port, destination_node, destination_port)
 	connections.push_back(connection)
+	_inc_connection_layer(connection.layer)
 	update()
 
 # Removes connection from given source node&port to given node&port
@@ -766,6 +877,7 @@ func disconnect_nodes(source_node: NodeGraphNode, source_port: int, destination_
 		var c = connections[i]
 		if c.source_node == source_node and c.source_port == source_port and c.destination_node == destination_node and c.destination_port == destination_port:
 			connections.remove(i)
+			_dec_connection_layer(c.layer)
 			break
 
 # Removes given connection

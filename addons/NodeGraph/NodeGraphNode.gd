@@ -5,6 +5,7 @@ extends Container
 signal selection_changed
 signal position_changed
 signal size_changed
+signal layer_changed
 
 signal port_added(port_index)
 signal port_updated(port_index)
@@ -121,6 +122,7 @@ class PortIterator:
 export(Vector2) var position: Vector2 setget _set_position
 export(Vector2) var size: Vector2 setget _set_size
 
+export(int) var layer setget set_layer
 export(bool) var selected: bool setget set_selected
 export(int) var port_count: int setget set_port_count, get_port_count
 
@@ -274,6 +276,13 @@ func set_port_count(value: int) -> void:
 
 func get_port(index: int) -> Port:
 	return _ports[index]
+
+func set_layer(value: int) -> void:
+	if layer == value:
+		return
+	
+	layer = value
+	emit_signal("layer_changed")
 
 func set_selected(value: bool) -> void:
 	if selected == value:

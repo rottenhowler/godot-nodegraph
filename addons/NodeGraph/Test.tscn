@@ -116,6 +116,7 @@ mouse_filter = 1
 script = ExtResource( 2 )
 position = Vector2( 366, 48 )
 size = Vector2( 100, 50 )
+layer = 1
 port_count = 1
 ports/0/type = 0
 ports/0/color = Color( 1, 1, 1, 1 )
