@@ -452,7 +452,7 @@ func _get_selection_box() -> Rect2:
 
 func _set_zoom(value: float) -> void:
 	zoom = min(zoom_max, max(zoom_min, value))
-	_update_zoom()
+	_do_layout()
 
 func zoom_at(position: Vector2, amount: float) -> void:
 	var new_zoom = min(zoom_max, max(zoom_min, zoom + amount))
@@ -460,9 +460,9 @@ func zoom_at(position: Vector2, amount: float) -> void:
 		return
 	scroll_offset = position / new_zoom - screen_to_node_position(position)
 	zoom = new_zoom
-	_update_zoom()
+	_do_layout()
 
-func _update_zoom() -> void:
+func _do_layout() -> void:
 	for node in get_nodes():
 		node.rect_scale = Vector2(zoom, zoom)
 		node.rect_position = node_to_screen_position(node.position)
@@ -690,9 +690,7 @@ func _gui_input(event):
 	if _panning:
 		if event is InputEventMouseMotion:
 			scroll_offset += event.relative / zoom
-			_update_zoom()
-#			for child in get_nodes():
-#				child.rect_position += event.relative
+			_do_layout()
 			accept_event()
 			update()
 			_update_all_connection_layers()
