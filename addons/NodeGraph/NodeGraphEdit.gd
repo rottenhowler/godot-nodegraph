@@ -431,6 +431,11 @@ func _resort() -> void:
 	for i in sorted.size():
 		move_child(sorted[i], i)
 
+func update_all() -> void:
+	update()
+	_top_layer.update()
+	_update_all_connection_layers()
+
 func _set_box_selection_mode(mode: int) -> void:
 	if _box_selection_mode == mode:
 		return
@@ -463,9 +468,7 @@ func _update_zoom() -> void:
 		node.rect_position = node_to_screen_position(node.position)
 	for connection in connections:
 		connection.update_curve()
-	update()
-	_top_layer.update()
-	_update_all_connection_layers()
+	update_all()
 
 # Returns iterator for all nodes
 func get_nodes():
