@@ -841,7 +841,7 @@ func is_connection_allowed(source_node: NodeGraphNode, source_port: int, destina
 	if !p1 or !p2:
 		return false
 	
-	if allowed_connections:
+	if allowed_connections.size() > 0:
 		return allowed_connections.has(p1.type) and allowed_connections[p1.type].has(p2.type)
 	
 	# By default only allow everything
