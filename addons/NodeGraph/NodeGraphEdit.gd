@@ -741,19 +741,19 @@ func is_connection_allowed(source_node: NodeGraphNode, source_port: int, destina
 # Creates connection between given nodes&ports
 func connect_nodes(source_node: NodeGraphNode, source_port: int, destination_node: NodeGraphNode, destination_port: int) -> void:
 	if !source_node:
-		print("add_connection: Invalid source node")
+		push_error("add_connection: Invalid source node")
 		return
 	
 	if !destination_node:
-		print("add_connection: Invalid destination node")
+		push_error("add_connection: Invalid destination node")
 		return
 	
 	if source_port < 0 or source_port >= source_node.port_count:
-		print("add_connection: Invalid source port")
+		push_error("add_connection: Invalid source port")
 		return
 	
 	if destination_port < 0 or destination_port >= destination_node.port_count:
-		print("add_connection: Invalid destination port")
+		push_error("add_connection: Invalid destination port")
 		return
 	
 	var connection = Connection.new(self, source_node, source_port, destination_node, destination_port)
