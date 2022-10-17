@@ -472,7 +472,7 @@ func zoom_at(position: Vector2, amount: float) -> void:
 	var new_zoom = min(zoom_max, max(zoom_min, zoom + amount))
 	if new_zoom == zoom:
 		return
-	scroll_offset = position / new_zoom - screen_to_node_position(position)
+	scroll_offset = screen_to_node_position(position) - position / new_zoom
 	zoom = new_zoom
 	_do_layout()
 
@@ -590,10 +590,10 @@ func _unhandled_input(event):
 			emit_signal("delete_request", node)
 
 func screen_to_node_position(screen_position: Vector2) -> Vector2:
-	return screen_position / zoom - scroll_offset
+	return screen_position / zoom + scroll_offset
 
 func node_to_screen_position(node_position: Vector2) -> Vector2:
-	return (node_position + scroll_offset) * zoom
+	return (node_position - scroll_offset) * zoom
 
 func _gui_input(event):
 	if _connecting_port:
@@ -703,7 +703,7 @@ func _gui_input(event):
 	
 	if _panning:
 		if event is InputEventMouseMotion:
-			scroll_offset += event.relative / zoom
+			scroll_offset -= event.relative / zoom
 			_do_layout()
 			accept_event()
 			update()
