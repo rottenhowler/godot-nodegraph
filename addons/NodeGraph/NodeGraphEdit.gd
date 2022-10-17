@@ -355,6 +355,7 @@ func _on_node_position_changed(node: NodeGraphNode) -> void:
 	emit_signal("node_position_changed", node)
 
 func _on_node_size_changed(node: NodeGraphNode) -> void:
+	node.rect_size = node.size
 	emit_signal("node_size_changed", node)
 
 func _on_node_layer_changed(node: NodeGraphNode) -> void:
