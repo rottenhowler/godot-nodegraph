@@ -15,7 +15,7 @@ export(Dictionary) var allowed_connections
 
 enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
 
-var scroll_offset: Vector2 = Vector2()
+var scroll_offset: Vector2 = Vector2() setget _set_scroll_offset
 
 var _resort_queued: bool = false
 
@@ -435,6 +435,13 @@ func update_all() -> void:
 	update()
 	_top_layer.update()
 	_update_all_connection_layers()
+
+func _set_scroll_offset(offset: Vector2) -> void:
+	if scroll_offset == offset:
+		return
+	
+	scroll_offset = offset
+	_do_layout()
 
 func _set_box_selection_mode(mode: int) -> void:
 	if _box_selection_mode == mode:
