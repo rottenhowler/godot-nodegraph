@@ -19,6 +19,7 @@ enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
 var scroll_offset: Vector2 = Vector2() setget _set_scroll_offset
 
 var _resort_queued: bool = false
+var _doing_layout: bool = false
 
 var _top_layer: CanvasItem
 var _connection_layers: Dictionary
@@ -303,6 +304,7 @@ func _on_child_entered_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
 		return
 	
+	# Setup before connecting to node's signals
 	child.rect_position = node_to_screen_position(child.position)
 	child.rect_size = child.size
 	child.rect_scale = Vector2(zoom, zoom)
@@ -341,6 +343,9 @@ func _on_node_port_removed(node: NodeGraphNode, index: int) -> void:
 		connections.erase(connection)
 
 func _on_node_rect_changed(node: NodeGraphNode) -> void:
+	if _doing_layout:
+		return
+	
 	for connection in connections:
 		if connection.source_node != node and connection.destination_node != node:
 			continue
@@ -478,9 +483,11 @@ func zoom_at(position: Vector2, amount: float) -> void:
 	_do_layout()
 
 func _do_layout() -> void:
+	_doing_layout = true
 	for node in get_nodes():
 		node.rect_scale = Vector2(zoom, zoom)
 		node.rect_position = node_to_screen_position(node.position)
+	_doing_layout = false
 	for connection in connections:
 		connection.update_curve()
 	update_all()
