@@ -12,6 +12,9 @@ signal node_disconnection_request(source_node, source_port, destination_node, de
 signal node_connection_with_empty(source_node, source_port, release_position)
 signal node_delete_request(node)
 
+signal node_added(node)
+signal node_removed(node)
+
 export(Dictionary) var allowed_connections
 
 enum SelectionMode {NORMAL, ADDITIVE, SUBTRACTIVE}
@@ -319,6 +322,7 @@ func _on_child_entered_tree(child: Node) -> void:
 	child.connect("node_layer_changed", self, "_on_node_layer_changed", [child])
 
 	_queue_resort()
+	emit_signal("node_added", child)
 
 func _on_child_exiting_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
@@ -335,6 +339,8 @@ func _on_child_exiting_tree(child: Node) -> void:
 
 	for connection in get_node_connections(child):
 		remove_connection(connection)
+
+	emit_signal("node_removed", child)
 
 func _on_node_port_removed(node: NodeGraphNode, index: int) -> void:
 	for connection in get_node_connections(node):
