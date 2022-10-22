@@ -138,6 +138,7 @@ func _init():
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	connect("item_rect_changed", self, "_on_rect_changed")
+	connect("minimum_size_changed", self, "_on_minimum_size_changed")
 	_top_layer.connect("draw", self, "_top_layer_draw")
 
 func update_all() -> void:
@@ -157,6 +158,9 @@ func set_node_position(new_position: Vector2) -> void:
 	update_all()
 
 func set_node_size(new_size: Vector2) -> void:
+	var min_size = get_combined_minimum_size()
+	new_size.x = max(new_size.x, min_size.x)
+	new_size.y = max(new_size.y, min_size.y)
 	if node_size == new_size:
 		return
 	
@@ -168,6 +172,13 @@ func _on_rect_changed() -> void:
 	for port in _ports:
 		port.position_dirty = true
 	update_all()
+
+func _on_minimum_size_changed() -> void:
+	var new_size = node_size
+	var min_size = get_combined_minimum_size()
+	new_size.x = max(new_size.x, min_size.x)
+	new_size.y = max(new_size.y, min_size.y)
+	set_node_size(new_size)
 
 func _get_property_list() -> Array:
 	var property_list = []
