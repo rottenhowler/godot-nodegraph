@@ -2,14 +2,14 @@ tool
 class_name NodeGraphNode
 extends Container
 
-signal selection_changed
-signal position_changed
-signal size_changed
-signal layer_changed
+signal node_selection_changed
+signal node_position_changed
+signal node_size_changed
+signal node_layer_changed
 
-signal port_added(port_index)
-signal port_updated(port_index)
-signal port_removed(port_index)
+signal node_port_added(port_index)
+signal node_port_updated(port_index)
+signal node_port_removed(port_index)
 
 const PORT_SIZE = 5
 const CORNER_RADIUS = 10
@@ -40,14 +40,14 @@ class Port extends Resource:
 			position_dirty = false
 		return position
 	
-	func _queue_port_updated() -> void:
+	func _queue_node_port_updated() -> void:
 		if updated_signal_pending:
 			return
 		updated_signal_pending = true
-		call_deferred("_emit_port_updated")
+		call_deferred("_emit_node_port_updated")
 	
-	func _emit_port_updated() -> void:
-		node.emit_signal("port_updated", node._ports.find(self))
+	func _emit_node_port_updated() -> void:
+		node.emit_signal("node_port_updated", node._ports.find(self))
 		updated_signal_pending = false
 
 	func _set_type(value: int) -> void:
@@ -55,7 +55,7 @@ class Port extends Resource:
 			return
 		
 		type = value
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 	func _set_color(value: Color) -> void:
@@ -63,7 +63,7 @@ class Port extends Resource:
 			return
 		
 		color = value
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 	func _set_enabled(value: bool) -> void:
@@ -71,7 +71,7 @@ class Port extends Resource:
 			return
 		
 		enabled = value
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 	func _set_hanchor(value: float) -> void:
@@ -80,7 +80,7 @@ class Port extends Resource:
 		
 		hanchor = value
 		position_dirty = true
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 	func _set_vanchor(value: float) -> void:
@@ -89,7 +89,7 @@ class Port extends Resource:
 		
 		vanchor = value
 		position_dirty = true
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 	func _set_offset(value: Vector2) -> void:
@@ -98,7 +98,7 @@ class Port extends Resource:
 		
 		offset = value
 		position_dirty = true
-		_queue_port_updated()
+		_queue_node_port_updated()
 		node.update_all()
 
 class PortIterator:
@@ -119,8 +119,8 @@ class PortIterator:
 	func _iter_get(arg):
 		return node.get_port(index)
 
-export(Vector2) var position: Vector2 setget _set_position
-export(Vector2) var size: Vector2 setget _set_size
+export(Vector2) var node_position: Vector2 setget set_node_position
+export(Vector2) var node_size: Vector2 setget set_node_size
 
 export(int) var layer setget set_layer
 export(bool) var selected: bool setget set_selected
@@ -146,21 +146,23 @@ func update_all() -> void:
 		_top_layer.update()
 
 func get_node_rect() -> Rect2:
-	return Rect2(position, size)
+	return Rect2(node_position, node_size)
 
-func _set_position(new_position: Vector2) -> void:
-	if position == new_position:
+func set_node_position(new_position: Vector2) -> void:
+	if node_position == new_position:
 		return
 
-	position = new_position
-	emit_signal("position_changed")
+	node_position = new_position
+	emit_signal("node_position_changed")
+	update_all()
 
-func _set_size(new_size: Vector2) -> void:
-	if size == new_size:
+func set_node_size(new_size: Vector2) -> void:
+	if node_size == new_size:
 		return
 	
-	size = new_size
-	emit_signal("size_changed")
+	node_size = new_size
+	emit_signal("node_size_changed")
+	update_all()
 
 func _on_rect_changed() -> void:
 	for port in _ports:
@@ -255,7 +257,7 @@ func set_port_count(value: int) -> void:
 		return
 	
 	for i in range(value, _ports.size()):
-		emit_signal("port_removed", i)
+		emit_signal("node_port_removed", i)
 	
 	_ports.resize(value)
 	
@@ -264,7 +266,7 @@ func set_port_count(value: int) -> void:
 			var port = Port.new(self)
 			port.updated_signal_pending = false
 			_ports[i] = port
-			emit_signal("port_added", i)
+			emit_signal("node_port_added", i)
 	
 	property_list_changed_notify()
 	update_all()
@@ -277,14 +279,14 @@ func set_layer(value: int) -> void:
 		return
 	
 	layer = value
-	emit_signal("layer_changed")
+	emit_signal("node_layer_changed")
 
 func set_selected(value: bool) -> void:
 	if selected == value:
 		return
 
 	selected = value
-	emit_signal("selection_changed")
+	emit_signal("node_selection_changed")
 
 	update_all()
 
@@ -317,7 +319,7 @@ func get_port_position(index: int) -> Vector2:
 	if index < 0 or index >= _ports.size():
 		return Vector2()
 	
-	return position + _ports[index].get_position()
+	return node_position + _ports[index].get_position()
 
 # Returns direction of connection point tangent at port
 # Usually points away from node, depending on which side port closer to

@@ -7,10 +7,10 @@ signal node_position_changed(node)
 signal node_size_changed(node)
 signal node_layer_changed(node)
 
-signal connection_request(source_node, source_port, destination_node, destination_port)
-signal disconnection_request(source_node, source_port, destination_node, destination_port)
-signal connection_with_empty(source_node, source_port, release_position)
-signal delete_request(node)
+signal node_connection_request(source_node, source_port, destination_node, destination_port)
+signal node_disconnection_request(source_node, source_port, destination_node, destination_port)
+signal node_connection_with_empty(source_node, source_port, release_position)
+signal node_delete_request(node)
 
 export(Dictionary) var allowed_connections
 
@@ -305,33 +305,33 @@ func _on_child_entered_tree(child: Node) -> void:
 		return
 	
 	# Setup before connecting to node's signals
-	child.rect_position = node_to_screen_position(child.position)
-	child.rect_size = child.size
+	child.rect_position = node_to_screen_position(child.node_position)
+	child.rect_size = child.node_size
 	child.rect_scale = Vector2(zoom, zoom)
 	
 	child.connect("item_rect_changed", self, "_on_node_rect_changed", [child])
-#	child.connect("port_added", self, "_on_node_port_added")
-#	child.connect("port_updated", self, "_on_node_port_updated")
-	child.connect("port_removed", self, "_on_node_port_removed", [child])
-	child.connect("selection_changed", self, "_on_node_selection_changed", [child])
-	child.connect("position_changed", self, "_on_node_position_changed", [child])
-	child.connect("size_changed", self, "_on_node_size_changed", [child])
-	child.connect("layer_changed", self, "_on_node_layer_changed", [child])
-	
+#	child.connect("node_port_added", self, "_on_node_port_added")
+#	child.connect("node_port_updated", self, "_on_node_port_updated")
+	child.connect("node_port_removed", self, "_on_node_port_removed", [child])
+	child.connect("node_selection_changed", self, "_on_node_selection_changed", [child])
+	child.connect("node_position_changed", self, "_on_node_position_changed", [child])
+	child.connect("node_size_changed", self, "_on_node_size_changed", [child])
+	child.connect("node_layer_changed", self, "_on_node_layer_changed", [child])
+
 	_queue_resort()
 
 func _on_child_exiting_tree(child: Node) -> void:
 	if !(child is NodeGraphNode):
 		return
 	
-	child.disconnect("selection_changed", self, "_on_node_selection_changed")
-	child.disconnect("position_changed", self, "_on_node_position_changed")
-	child.disconnect("size_changed", self, "_on_node_size_changed")
-	child.disconnect("layer_changed", self, "_on_node_layer_changed")
+	child.disconnect("node_selection_changed", self, "_on_node_selection_changed")
+	child.disconnect("node_position_changed", self, "_on_node_position_changed")
+	child.disconnect("node_size_changed", self, "_on_node_size_changed")
+	child.disconnect("node_layer_changed", self, "_on_node_layer_changed")
 	child.disconnect("item_rect_changed", self, "_on_node_rect_changed")
-#	child.disconnect("port_added", self, "_on_node_port_added")
-#	child.disconnect("port_updated", self, "_on_node_port_updated")
-	child.disconnect("port_removed", self, "_on_node_port_removed")
+#	child.disconnect("node_port_added", self, "_on_node_port_added")
+#	child.disconnect("node_port_updated", self, "_on_node_port_updated")
+	child.disconnect("node_port_removed", self, "_on_node_port_removed")
 
 	for connection in get_node_connections(child):
 		remove_connection(connection)
@@ -356,11 +356,11 @@ func _on_node_selection_changed(node: NodeGraphNode) -> void:
 	emit_signal("node_selection_changed", node)
 
 func _on_node_position_changed(node: NodeGraphNode) -> void:
-	node.rect_position = node_to_screen_position(node.position)
+	node.rect_position = node_to_screen_position(node.node_position)
 	emit_signal("node_position_changed", node)
 
 func _on_node_size_changed(node: NodeGraphNode) -> void:
-	node.rect_size = node.size
+	node.rect_size = node.node_size
 	emit_signal("node_size_changed", node)
 
 func _on_node_layer_changed(node: NodeGraphNode) -> void:
@@ -486,7 +486,7 @@ func _do_layout() -> void:
 	_doing_layout = true
 	for node in get_nodes():
 		node.rect_scale = Vector2(zoom, zoom)
-		node.rect_position = node_to_screen_position(node.position)
+		node.rect_position = node_to_screen_position(node.node_position)
 	_doing_layout = false
 	for connection in connections:
 		connection.update_curve()
@@ -595,7 +595,7 @@ func _unhandled_input(event):
 		_set_box_selection_mode(mode)
 	elif event is InputEventKey and (event.scancode == KEY_DELETE or event.scancode == KEY_BACKSPACE):
 		for node in array(get_selected_nodes()):
-			emit_signal("delete_request", node)
+			emit_signal("node_delete_request", node)
 
 func screen_to_node_position(screen_position: Vector2) -> Vector2:
 	return screen_position / zoom + scroll_offset
@@ -612,10 +612,10 @@ func _gui_input(event):
 			_port_filter_settings_pool.release(settings)
 			if port_info:
 				if is_connection_allowed(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index):
-					emit_signal("connection_request", _connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
+					emit_signal("node_connection_request", _connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
 					# connect_nodes(_connecting_port.node, _connecting_port.index, port_info.node, port_info.index)
 			else:
-				emit_signal("connection_with_empty", _connecting_port.node, _connecting_port.index, screen_to_node_position(event.position))
+				emit_signal("node_connection_with_empty", _connecting_port.node, _connecting_port.index, screen_to_node_position(event.position))
 			
 			_dec_connection_layer(_connecting_port.node.layer)
 			_connecting_port = null
@@ -689,7 +689,7 @@ func _gui_input(event):
 			_last_pressed_node = null
 			
 			for node in get_selected_nodes():
-				node.position += event.relative / zoom
+				node.node_position += event.relative / zoom
 				for connection in get_node_connections(node):
 					connection.update_curve()
 					_update_connection_layer(connection.layer)
@@ -744,7 +744,7 @@ func _gui_input(event):
 				if intersects:
 					connections_to_erase.push_back(connection)
 			for conn in connections_to_erase:
-				emit_signal("disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
+				emit_signal("node_disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
 			accept_event()
 			update()
 			_top_layer.update()
@@ -767,7 +767,7 @@ func _gui_input(event):
 				var conn = conns[0]
 				# Emit signal and check if signal handler has removed the connection.
 				# If so, convert it to a connecting state
-				emit_signal("disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
+				emit_signal("node_disconnection_request", conn.source_node, conn.source_port, conn.destination_node, conn.destination_port)
 				if !connections.has(conn):
 					port_info.node = conn.source_node
 					port_info.index = conn.source_port
