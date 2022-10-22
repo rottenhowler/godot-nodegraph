@@ -240,9 +240,6 @@ func _ready() -> void:
 	_connecting_curve.add_point(Vector2())
 	_connecting_curve.add_point(Vector2())
 
-func _make_transparent(color: Color, amount: float) -> Color:
-	return Color(color.r, color.g, color.b, amount)
-
 func _draw() -> void:
 	_top_layer.raise()
 	
