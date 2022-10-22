@@ -352,11 +352,16 @@ func _on_node_rect_changed(node: NodeGraphNode) -> void:
 	if _doing_layout:
 		return
 	
+	var found_connections = false
 	for connection in connections:
 		if connection.source_node != node and connection.destination_node != node:
 			continue
 		
 		connection.update_curve()
+		found_connections = true
+	
+	if found_connections:
+		update_all()
 
 func _on_node_selection_changed(node: NodeGraphNode) -> void:
 	emit_signal("node_selection_changed", node)
